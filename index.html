@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dimensionamiento Solar FV — Trivium</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ink:#0E1A24;
+    --panel:#12212F;
+    --panel-2:#16283A;
+    --line: rgba(255,255,255,0.08);
+    --amber:#F2A93B;
+    --amber-dim: rgba(242,169,59,0.18);
+    --sky:#5FA8D3;
+    --green:#5BB98C;
+    --text:#EAF0F4;
+    --text-dim:#9FB2C0;
+    --danger:#E2694B;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--ink); color:var(--text);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.disp{font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px;}
+
+  /* HERO */
+  .hero{display:flex;align-items:center;justify-content:space-between;gap:24px;
+    padding:22px 26px;border:1px solid var(--line);border-radius:16px;
+    background:linear-gradient(135deg, rgba(242,169,59,0.08), rgba(95,168,211,0.05));
+    margin-bottom:26px;flex-wrap:wrap;}
+  .hero-eyebrow{color:var(--amber);letter-spacing:0.14em;font-size:11px;text-transform:uppercase;font-weight:600;margin-bottom:6px;}
+  .hero h1{font-size:28px;margin:0 0 6px;font-weight:700;}
+  .hero p{color:var(--text-dim);margin:0;font-size:14px;max-width:520px;}
+  .gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;}
+  .gauge-label{font-size:10px;color:var(--text-dim);letter-spacing:0.1em;text-transform:uppercase;}
+  .gauge-value{font-size:22px;font-weight:600;fill:var(--text);}
+
+  /* LAYOUT */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:0.09em;color:var(--amber);margin:0 0 18px;font-weight:600;}
+
+  label{display:block;font-size:13px;color:var(--text-dim);margin-bottom:6px;margin-top:16px;}
+  label:first-of-type{margin-top:0;}
+  input[type=text],input[type=number],select{
+    width:100%;padding:10px 12px;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:8px;color:var(--text);font-size:14px;font-family:'Inter',sans-serif;
+  }
+  input:focus,select:focus{outline:2px solid var(--amber);outline-offset:1px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .hint{font-size:11.5px;color:var(--text-dim);margin-top:5px;line-height:1.4;}
+
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .seg button{flex:1;padding:9px 8px;background:var(--panel-2);color:var(--text-dim);border:none;
+    cursor:pointer;font-size:13px;font-family:'Inter',sans-serif;transition:.15s;}
+  .seg button.active{background:var(--amber);color:#1a1206;font-weight:600;}
+  .seg button:not(:last-child){border-right:1px solid var(--line);}
+
+  .radiogrp label.opt{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--text);
+    background:var(--panel-2);border:1px solid var(--line);padding:10px 12px;border-radius:8px;margin-top:8px;cursor:pointer;}
+  .radiogrp label.opt.sel{border-color:var(--amber);background:var(--amber-dim);}
+  .subfield{margin-top:8px;padding:12px;background:rgba(0,0,0,0.15);border-radius:8px;border:1px dashed var(--line);}
+
+  .slider-wrap{display:flex;align-items:center;gap:12px;}
+  input[type=range]{flex:1;accent-color:var(--amber);}
+  .slider-val{font-family:'IBM Plex Mono',monospace;font-size:15px;min-width:46px;text-align:right;color:var(--amber);}
+
+  .btn-primary{width:100%;margin-top:22px;padding:13px;background:var(--amber);color:#1a1206;
+    border:none;border-radius:9px;font-weight:700;font-size:14.5px;cursor:pointer;font-family:'Space Grotesk',sans-serif;}
+  .btn-primary:hover{filter:brightness(1.06);}
+  .btn-secondary{width:100%;margin-top:12px;padding:12px;background:transparent;color:var(--sky);
+    border:1px solid var(--sky);border-radius:9px;font-weight:600;font-size:14px;cursor:pointer;}
+
+  /* RESULTS */
+  .results{display:none;}
+  .results.show{display:block;}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px;}
+  .stat{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:14px 16px;}
+  .stat .k{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.08em;}
+  .stat .v{font-family:'IBM Plex Mono',monospace;font-size:21px;font-weight:600;color:var(--text);margin-top:4px;}
+  .stat .v span{font-size:12px;color:var(--text-dim);font-weight:400;}
+  .spec-list{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;}
+  .spec-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px;}
+  .spec-row:last-child{border-bottom:none;}
+  .spec-row .lbl{color:var(--text-dim);}
+  .spec-row .val{font-family:'IBM Plex Mono',monospace;text-align:right;}
+  .note{font-size:12px;color:var(--amber);background:var(--amber-dim);padding:10px 12px;border-radius:8px;margin-top:14px;line-height:1.5;}
+
+  /* BUDGET TABLE */
+  .budget-card{margin-top:20px;}
+  table.budget{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;}
+  table.budget th{text-align:left;color:var(--text-dim);font-weight:600;font-size:11px;text-transform:uppercase;
+    letter-spacing:0.04em;padding:8px 6px;border-bottom:1px solid var(--line);}
+  table.budget td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  table.budget input{width:100%;padding:6px 8px;font-size:13px;}
+  table.budget td.num{font-family:'IBM Plex Mono',monospace;text-align:right;}
+  .totals{margin-top:10px;display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
+  .totals .line{display:flex;gap:18px;font-size:13.5px;color:var(--text-dim);}
+  .totals .line span:last-child{font-family:'IBM Plex Mono',monospace;color:var(--text);min-width:110px;text-align:right;}
+  .totals .grand{font-size:19px;color:var(--amber);font-weight:700;margin-top:6px;}
+  .totals .grand span:last-child{font-family:'IBM Plex Mono',monospace;min-width:110px;text-align:right;}
+  .toprow{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
+  .curr-select{width:auto;padding:6px 10px;font-size:12.5px;}
+
+  .footer-note{font-size:11.5px;color:var(--text-dim);margin-top:26px;text-align:center;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div>
+      <div class="hero-eyebrow">Trivium Energía · Herramienta de dimensionamiento</div>
+      <h1>Sistema Solar Fotovoltaico</h1>
+      <p>Cargá el consumo y las condiciones del sitio para obtener paneles, inversor, protecciones DPS y el presupuesto técnico-económico.</p>
+    </div>
+    <div class="gauge-wrap">
+      <svg width="92" height="92" viewBox="0 0 92 92">
+        <circle cx="46" cy="46" r="38" fill="none" stroke="var(--panel-2)" stroke-width="8"/>
+        <circle id="gaugeArc" cx="46" cy="46" r="38" fill="none" stroke="var(--amber)" stroke-width="8"
+          stroke-linecap="round" stroke-dasharray="238.76" stroke-dashoffset="238.76"
+          transform="rotate(-90 46 46)" style="transition:stroke-dashoffset .6s ease;"/>
+        <text x="46" y="42" text-anchor="middle" class="gauge-value mono" id="gaugeNum">–</text>
+        <text x="46" y="58" text-anchor="middle" font-size="8" fill="var(--text-dim)">HSP kWh/m²d</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- FORM -->
+    <div class="card">
+      <h2>1 · Datos del proyecto</h2>
+
+      <label>Consumo eléctrico</label>
+      <div class="row2">
+        <input type="number" id="consumo" placeholder="Ej: 450" min="0" step="any">
+        <select id="periodo">
+          <option value="mensual">kWh / mes</option>
+          <option value="anual">kWh / año</option>
+        </select>
+      </div>
+
+      <label>Ubicación — elegí cómo cargarla</label>
+      <div class="radiogrp" id="locModeGroup">
+        <label class="opt sel" data-mode="lista"><input type="radio" name="locmode" value="lista" checked style="accent-color:var(--amber)"> Elegir localidad de la lista (rápido)</label>
+        <label class="opt" data-mode="csv"><input type="radio" name="locmode" value="csv" style="accent-color:var(--amber)"> Subir CSV de PVGIS (más preciso)</label>
+        <label class="opt" data-mode="manual"><input type="radio" name="locmode" value="manual" style="accent-color:var(--amber)"> Ingresar HSP manualmente</label>
+      </div>
+
+      <div class="subfield" id="sub-lista">
+        <select id="localidad"></select>
+        <div class="hint">Valores orientativos de HSP (horas sol pico) anuales promedio, ángulo óptimo. Para una cotización final, se recomienda el CSV de PVGIS.</div>
+      </div>
+
+      <div class="subfield" id="sub-csv" style="display:none;">
+        <input type="file" id="csvFile" accept=".csv">
+        <div class="hint">Subí el CSV descargado de la herramienta PVGIS (mensual u horario). Intento detectar automáticamente las columnas de irradiación (H(i), H(h), G(i)). Si no lo logro, te pido el valor manual.</div>
+        <div class="hint mono" id="csvResult" style="color:var(--green);"></div>
+      </div>
+
+      <div class="subfield" id="sub-manual" style="display:none;">
+        <input type="number" id="hspManual" placeholder="Ej: 5.6" step="0.01">
+        <div class="hint">HSP diario promedio (kWh/m²/día) que ya tengas calculado de PVGIS u otra fuente.</div>
+      </div>
+
+      <label>Tipo de conexión</label>
+      <div class="seg" id="gridSeg">
+        <button data-val="ongrid" class="active">On-grid</button>
+        <button data-val="offgrid">Off-grid</button>
+      </div>
+
+      <label>Tipo de montaje</label>
+      <div class="seg" id="mountSeg">
+        <button data-val="coplanar" class="active">Coplanar</button>
+        <button data-val="angulo">Estructura en ángulo</button>
+      </div>
+      <div id="anguloExtra" style="display:none;">
+        <label>Ángulo de elevación de la estructura (°)</label>
+        <input type="number" id="tiltAngle" value="30" min="5" max="60">
+      </div>
+
+      <label>Autoconsumo a cubrir: <span class="slider-val mono" id="pctVal">80%</span></label>
+      <div class="slider-wrap">
+        <input type="range" id="pct" min="10" max="100" value="80">
+      </div>
+
+      <label>Potencia unitaria del panel (Wp)</label>
+      <input type="number" id="panelWp" value="550">
+
+      <label style="display:flex;align-items:center;gap:8px;margin-top:16px;">
+        <input type="checkbox" id="incluirCA" style="width:auto;accent-color:var(--amber);"> Incluir protección de CA (térmica + DPS CA) además de la de CC
+      </label>
+
+      <div id="offgridExtra" style="display:none;">
+        <label>Potencia pico simultánea (kW) — opcional, mejora el inversor off-grid</label>
+        <input type="number" id="picoKw" placeholder="Ej: 3.5" step="any">
+
+        <label>Autonomía deseada (sin sol)</label>
+        <div class="row2">
+          <input type="number" id="autonomiaVal" placeholder="Ej: 12" step="any" min="0">
+          <select id="autonomiaUnit">
+            <option value="horas">horas</option>
+            <option value="dias">días</option>
+          </select>
+        </div>
+
+        <div class="row2">
+          <div>
+            <label>Profundidad de descarga — DoD (%)</label>
+            <input type="number" id="dodPct" value="90" min="10" max="100">
+          </div>
+          <div>
+            <label>Tamaño de módulo de batería (kWh)</label>
+            <input type="number" id="moduloKwh" value="5" min="0.5" step="any">
+          </div>
+        </div>
+        <div class="hint">DoD 90% es típico para baterías LFP (litio-hierro-fosfato). Ajustá si usás otra química.</div>
+      </div>
+
+      <button class="btn-primary" onclick="calcular()">Calcular dimensionamiento</button>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="card results" id="resultsCard">
+      <h2>2 · Resultado técnico</h2>
+      <div class="stat-grid">
+        <div class="stat"><div class="k">Potencia requerida</div><div class="v" id="rKwp">–<span> kWp</span></div></div>
+        <div class="stat"><div class="k">Cantidad de paneles</div><div class="v" id="rPanels">–<span> unid.</span></div></div>
+      </div>
+      <div class="spec-list">
+        <div class="spec-row"><span class="lbl">Potencia instalada real</span><span class="val" id="rKwpReal">–</span></div>
+        <div class="spec-row"><span class="lbl">Inversor sugerido</span><span class="val" id="rInv">–</span></div>
+        <div class="spec-row"><span class="lbl">Trackers MPPT</span><span class="val" id="rMppt">–</span></div>
+        <div class="spec-row"><span class="lbl">DPS CC (protección DC)</span><span class="val" id="rDpsCc">–</span></div>
+        <div class="spec-row"><span class="lbl">DPS CA (protección AC)</span><span class="val" id="rDpsCa">–</span></div>
+        <div class="spec-row"><span class="lbl">HSP utilizado</span><span class="val" id="rHsp">–</span></div>
+        <div class="spec-row" id="rowAutonomia" style="display:none;"><span class="lbl">Autonomía</span><span class="val" id="rAutonomia">–</span></div>
+        <div class="spec-row" id="rowBattKwh" style="display:none;"><span class="lbl">Capacidad de baterías</span><span class="val" id="rBattKwh">–</span></div>
+        <div class="spec-row" id="rowBattMod" style="display:none;"><span class="lbl">Módulos sugeridos</span><span class="val" id="rBattMod">–</span></div>
+      </div>
+      <div class="note" id="offgridNote" style="display:none;">
+        La capacidad de baterías se calcula para cubrir el consumo objetivo diario durante la autonomía indicada, con la DoD y eficiencia del inversor consideradas. Validar contra la curva de descarga real del modelo elegido.
+      </div>
+    </div>
+  </div>
+
+  <!-- BUDGET -->
+  <div class="card budget-card results" id="budgetCard">
+    <div class="toprow">
+      <h2 style="margin:0;">3 · Presupuesto técnico-económico</h2>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select class="curr-select" id="currency">
+          <option value="USD">USD</option>
+          <option value="ARS">ARS</option>
+        </select>
+        <label style="margin:0;font-size:12px;display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="ivaCheck" checked style="width:auto;accent-color:var(--amber);"> Incluir IVA (21%)
+        </label>
+        <label style="margin:0;font-size:12px;display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="showPricesPdf" style="width:auto;accent-color:var(--amber);"> Mostrar precio unitario en el PDF
+        </label>
+      </div>
+    </div>
+    <div class="hint">Precios unitarios editables — no reflejan una cotización vigente, ajustalos antes de enviar al cliente.</div>
+
+    <div class="subfield" style="margin-top:12px;">
+      <label style="margin-top:0;">Catálogo de precios (opcional) — CSV o Excel</label>
+      <input type="file" id="catalogFile" accept=".csv,.xlsx,.xls">
+      <div class="hint">Funciona con catálogos de varias hojas/secciones (ej. un bloque de encabezado por marca o categoría, como las listas de distribuidores). Busco columnas de <strong>categoría</strong>, <strong>descripción</strong> y <strong>precio</strong>, y extraigo la potencia (Wp, kW, kWh) directamente del texto de la descripción si no hay una columna dedicada. Si hay columna de disponibilidad/stock, la muestro junto al ítem.</div>
+      <div class="hint mono" id="catalogStatus"></div>
+    </div>
+
+    <table class="budget" id="budgetTable">
+      <thead>
+        <tr><th style="width:36%">Ítem</th><th style="width:12%">Cant.</th><th style="width:18%">P. unitario</th><th style="width:18%">Subtotal</th></tr>
+      </thead>
+      <tbody id="budgetBody"></tbody>
+    </table>
+
+    <div class="totals">
+      <div class="grand"><span>Total</span><span id="tTotal">–</span></div>
+      <div class="hint" id="dolarNote" style="text-align:right;display:none;">(Valor dólar venta Banco Nación)</div>
+    </div>
+
+    <div class="row2">
+      <div>
+        <label>Cliente / Obra</label>
+        <input type="text" id="clienteNombre" placeholder="Nombre del cliente o proyecto">
+      </div>
+      <div>
+        <label>Logo Trivium (PNG/JPG, opcional)</label>
+        <input type="file" id="logoFile" accept="image/png,image/jpeg">
+      </div>
+    </div>
+    <div class="hint" id="logoStatus">Sin logo cargado — el PDF usará el nombre en texto.</div>
+
+    <button class="btn-secondary" onclick="generarPDF()">Descargar presupuesto en PDF</button>
+  </div>
+
+  <div class="footer-note">Valores de HSP, factores de pérdidas y precios son orientativos. Validar tensiones, corrientes y modelos finales contra la ficha técnica del inversor y paneles elegidos antes de compra.</div>
+</div>
+
+<script>
+const PSH_TABLE = {
+  "San Juan (Capital)": 5.6, "Rawson, San Juan": 5.6, "Chimbas, San Juan": 5.6,
+  "Rivadavia, San Juan": 5.6, "Pocito, San Juan": 5.6, "Santa Lucía, San Juan": 5.6,
+  "Ullum, San Juan": 5.7, "Zonda, San Juan": 5.7, "Caucete, San Juan": 5.6,
+  "Buenos Aires (CABA)": 4.5, "La Plata": 4.6, "Córdoba Capital": 5.1,
+  "Mendoza Capital": 5.4, "Rosario": 4.6, "Salta Capital": 5.8,
+  "San Luis Capital": 5.4, "Neuquén Capital": 5.0, "La Rioja Capital": 5.7,
+  "San Miguel de Tucumán": 5.1, "Santa Fe Capital": 4.7, "Bahía Blanca": 4.9,
+  "Comodoro Rivadavia": 4.7, "Catamarca Capital": 5.5, "Santiago del Estero": 5.2
+};
+
+const sel = document.getElementById('localidad');
+Object.keys(PSH_TABLE).sort().forEach(city=>{
+  const o = document.createElement('option');
+  o.value = PSH_TABLE[city]; o.textContent = `${city} (~${PSH_TABLE[city]} kWh/m²·d)`;
+  sel.appendChild(o);
+});
+
+let locMode = 'lista', gridMode = 'ongrid', mountMode = 'coplanar', csvHsp = null;
+let logoDataUrl = null, logoFormat = null, logoDims = null;
+let catalogItems = null;
+
+function normStr(s){
+  return (s||'').toString().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .trim();
+}
+function parseNumber(v){
+  if(typeof v === 'number') return v;
+  const raw = (v||'').toString();
+  const cleaned = raw.replace(/[^\d.,]/g,'');
+  if(!cleaned) return 0;
+  if(cleaned.includes(',') && cleaned.includes('.')) {
+    return parseFloat(cleaned.replace(/\./g,'').replace(',', '.')) || 0;
+  } else if(cleaned.includes(',')) {
+    return parseFloat(cleaned.replace(',', '.')) || 0;
+  }
+  return parseFloat(cleaned) || 0;
+}
+
+// Extracts power/capacity clues from a free-text description: Wp (panels), kW/VA (inverters), kWh/Wh/V·Ah (batteries)
+function extractPowerInfo(text){
+  const t = normStr(text);
+  const num = s => parseNumber(s);
+  let wp=null, kwh=null, kw=null, m;
+  if(m = t.match(/(\d+[.,]?\d*)\s*wp\b/)) wp = num(m[1]);
+  if(m = t.match(/(\d+[.,]?\d*)\s*kwh\b/)) kwh = num(m[1]);
+  if(kwh===null && (m = t.match(/(\d+[.,]?\d*)\s*wh\b/))) kwh = num(m[1])/1000;
+  if(kwh===null){
+    const mv = t.match(/(\d+[.,]?\d*)\s*v[\s\-]/);
+    const ma = t.match(/(\d+[.,]?\d*)\s*ah\b/);
+    if(mv && ma) kwh = num(mv[1])*num(ma[1])/1000;
+  }
+  if(m = t.match(/(\d+[.,]?\d*)\s*kw\b/)) kw = num(m[1]);
+  if(kw===null && (m = t.match(/(\d+[.,]?\d*)\s*va\b/))) kw = num(m[1])/1000;
+  if(kw===null && wp===null && (m = t.match(/(\d+[.,]?\d*)\s*w\b/))) kw = num(m[1])/1000;
+  return {wp, kwh, kw};
+}
+
+// Parses a sheet that may contain repeated header blocks (common in distributor catalogs
+// where each brand/category section repeats its own header row).
+function parseSheetRows(aoa){
+  const items = [];
+  let colMap = null;
+  const findCol = (row, regexList) => {
+    for(const re of regexList){
+      const idx = row.findIndex(c => re.test(normStr(c)));
+      if(idx !== -1) return idx;
+    }
+    return -1;
+  };
+  for(let i=0;i<aoa.length;i++){
+    const row = aoa[i].map(c=> c==null ? '' : c);
+    const nonEmpty = row.filter(c=>c!=='').length;
+    if(nonEmpty === 0) continue;
+
+    const catIdx = findCol(row, [/^categor/]);
+    const descIdx = findCol(row, [/descrip/]);
+    const isHeaderRow = catIdx !== -1 && descIdx !== -1;
+
+    if(isHeaderRow){
+      const priceIdx = findCol(row, [/descuento/, /sin\s*iva/, /precio|price|costo|valor/, /usd|u\$s|\$/]);
+      const codIdx = findCol(row, [/codigo/]);
+      const fabIdx = findCol(row, [/fabricant|marca/]);
+      const dispIdx = findCol(row, [/disponib|stock/]);
+      colMap = { catIdx, descIdx, priceIdx, codIdx, fabIdx, dispIdx };
+      continue;
+    }
+
+    if(!colMap || colMap.priceIdx === -1) continue;
+    const categoria = (row[colMap.catIdx] || '').toString().trim();
+    const descripcion = (row[colMap.descIdx] || '').toString().trim();
+    const precio = parseNumber(row[colMap.priceIdx]);
+    if(!categoria || !descripcion || !(precio > 0)) continue;
+
+    const power = extractPowerInfo(descripcion);
+    items.push({
+      codigo: colMap.codIdx!==-1 ? (row[colMap.codIdx]||'').toString() : '',
+      categoria, categoriaNorm: normStr(categoria),
+      fabricante: colMap.fabIdx!==-1 ? (row[colMap.fabIdx]||'').toString() : '',
+      descripcion, precio,
+      disponibilidad: colMap.dispIdx!==-1 ? (row[colMap.dispIdx]||'').toString() : '',
+      ...power,
+      _searchText: normStr(categoria+' '+descripcion)
+    });
+  }
+  return items;
+}
+
+document.getElementById('catalogFile').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      const data = new Uint8Array(ev.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      let items = [];
+      wb.SheetNames.forEach(name=>{
+        const aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, defval:''});
+        items = items.concat(parseSheetRows(aoa));
+      });
+      if(items.length === 0) throw new Error('No se detectaron filas con categoría, descripción y precio reconocibles');
+      catalogItems = items;
+
+      const cats = [...new Set(items.map(i=>i.categoria))];
+      document.getElementById('catalogStatus').textContent = `✓ Catálogo cargado: ${items.length} ítems en ${cats.length} categorías (ej: ${cats.slice(0,5).join(', ')}${cats.length>5?'…':''})`;
+      document.getElementById('catalogStatus').style.color = 'var(--green)';
+      if(lastCalc) buildBudget();
+    }catch(err){
+      catalogItems = null;
+      document.getElementById('catalogStatus').textContent = '⚠ No se pudo leer el catálogo: ' + err.message;
+      document.getElementById('catalogStatus').style.color = 'var(--danger)';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// categoryTest: function(categoriaNorm) -> boolean, to select the right rows for a component
+// powerField: 'wp' | 'kw' | 'kwh' — which extracted field to compare against target
+// descPreferred/descAvoid: optional regexes to softly prefer rows whose description matches (e.g. coplanar vs angulo)
+function findCatalogMatch(categoryTest, powerField, target, opts){
+  opts = opts || {};
+  if(!catalogItems) return null;
+  let filtered = catalogItems.filter(r => categoryTest(r.categoriaNorm));
+  if(filtered.length === 0) return null;
+
+  if(opts.descPreferred){
+    const preferred = filtered.filter(r=>opts.descPreferred.test(normStr(r.descripcion)));
+    if(preferred.length) filtered = preferred;
+  }
+  if(opts.descAvoid){
+    const clean = filtered.filter(r=>!opts.descAvoid.test(normStr(r.descripcion)));
+    if(clean.length) filtered = clean;
+  }
+
+  if(target != null && powerField){
+    const withPower = filtered.filter(r=>r[powerField]!=null && r[powerField]>0);
+    if(withPower.length){
+      const above = withPower.filter(r=>r[powerField] >= target*0.98).sort((a,b)=>a[powerField]-b[powerField]);
+      if(above.length) return {...above[0], note:''};
+      const below = withPower.slice().sort((a,b)=>b[powerField]-a[powerField]);
+      return {...below[0], note:' (menor a lo requerido, validar)'};
+    }
+  }
+  const cheapest = filtered.slice().sort((a,b)=>a.precio-b.precio);
+  return {...cheapest[0], note:''};
+}
+
+document.getElementById('logoFile').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const img = new Image();
+    img.onload = function(){
+      logoDataUrl = ev.target.result;
+      logoFormat = file.type === 'image/png' ? 'PNG' : 'JPEG';
+      logoDims = {w: img.width, h: img.height};
+      document.getElementById('logoStatus').textContent = `✓ Logo cargado (${img.width}×${img.height}px). Se incluirá en el PDF.`;
+      document.getElementById('logoStatus').style.color = 'var(--green)';
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+document.querySelectorAll('#locModeGroup .opt').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    document.querySelectorAll('#locModeGroup .opt').forEach(o=>o.classList.remove('sel'));
+    el.classList.add('sel');
+    locMode = el.dataset.mode;
+    document.getElementById('sub-lista').style.display = locMode==='lista' ? 'block':'none';
+    document.getElementById('sub-csv').style.display = locMode==='csv' ? 'block':'none';
+    document.getElementById('sub-manual').style.display = locMode==='manual' ? 'block':'none';
+  });
+});
+
+document.querySelectorAll('#gridSeg button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#gridSeg button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); gridMode = b.dataset.val;
+    document.getElementById('offgridExtra').style.display = gridMode==='offgrid' ? 'block':'none';
+  });
+});
+document.querySelectorAll('#mountSeg button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('#mountSeg button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); mountMode = b.dataset.val;
+    document.getElementById('anguloExtra').style.display = mountMode==='angulo' ? 'block':'none';
+  });
+});
+
+document.getElementById('pct').addEventListener('input', e=>{
+  document.getElementById('pctVal').textContent = e.target.value + '%';
+});
+
+document.getElementById('csvFile').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      const text = ev.target.result;
+      const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0);
+      let headerIdx = -1, cols = [];
+      for(let i=0;i<lines.length;i++){
+        const l = lines[i];
+        if(/H\(i\)|H\(h\)|G\(i\)|H\(i\)_m|H\(h\)_m/i.test(l)){
+          headerIdx = i; cols = l.split(',').map(c=>c.trim()); break;
+        }
+      }
+      if(headerIdx === -1) throw new Error('No se detectaron columnas de irradiación');
+      const targetIdx = cols.findIndex(c=>/H\(i\)_m|H\(i\)|H\(h\)_m|H\(h\)|G\(i\)/i.test(c));
+      if(targetIdx === -1) throw new Error('Columna no encontrada');
+      let values = [];
+      for(let j=headerIdx+1;j<lines.length;j++){
+        const parts = lines[j].split(',');
+        if(parts.length <= targetIdx) continue;
+        const v = parseFloat(parts[targetIdx]);
+        if(!isNaN(v) && v>0) values.push(v);
+      }
+      if(values.length === 0) throw new Error('Sin datos numéricos');
+      const avgMonthly = values.reduce((a,b)=>a+b,0)/values.length;
+      // Heuristic: if the average looks like a monthly total (>15), convert to daily
+      csvHsp = avgMonthly > 15 ? avgMonthly/30.44 : avgMonthly;
+      document.getElementById('csvResult').textContent = `✓ HSP detectado: ${csvHsp.toFixed(2)} kWh/m²/día (${values.length} registros)`;
+    }catch(err){
+      csvHsp = null;
+      document.getElementById('csvResult').textContent = '⚠ No se pudo parsear automáticamente. Ingresá el valor HSP manual en la opción de al lado.';
+      document.getElementById('csvResult').style.color = 'var(--danger)';
+    }
+  };
+  reader.readAsText(file);
+});
+
+function getHsp(){
+  if(locMode==='lista') return parseFloat(sel.value);
+  if(locMode==='manual') return parseFloat(document.getElementById('hspManual').value) || 0;
+  if(locMode==='csv') return csvHsp || 0;
+  return 0;
+}
+
+let lastCalc = null;
+let lastBudgetItems = [];
+
+function calcular(){
+  const consumo = parseFloat(document.getElementById('consumo').value);
+  const periodo = document.getElementById('periodo').value;
+  const hsp = getHsp();
+  const pct = parseFloat(document.getElementById('pct').value);
+  const panelWp = parseFloat(document.getElementById('panelWp').value) || 550;
+
+  if(!consumo || consumo<=0){ alert('Ingresá un consumo válido en kWh.'); return; }
+  if(!hsp || hsp<=0){ alert('Falta el valor de HSP: elegí una localidad, subí el CSV, o ingresá el valor manual.'); return; }
+
+  const mountFactor = mountMode==='coplanar' ? 0.95 : 1.0;
+  const PR = 0.77;
+
+  const dailyConsumo = periodo==='mensual' ? consumo/30.44 : consumo/365;
+  const dailyTarget = dailyConsumo * (pct/100);
+  const effHsp = hsp * mountFactor;
+  const requiredKwp = dailyTarget / (effHsp * PR);
+  const numPanels = Math.ceil(requiredKwp*1000/panelWp);
+  const actualKwp = numPanels*panelWp/1000;
+
+  // Inverter sizing
+  let invTarget = actualKwp/1.15;
+  if(gridMode==='offgrid'){
+    const pico = parseFloat(document.getElementById('picoKw').value);
+    if(pico && pico>0) invTarget = Math.max(invTarget, pico*1.25);
+  }
+  const stdSizes = [1.5,2,3,3.6,5,6,8,10,15,20,25,30,40,50,60,80,100];
+  const invSize = stdSizes.find(s=>s>=invTarget) || stdSizes[stdSizes.length-1];
+
+  let mppt;
+  if(invSize<=10) mppt = 2;
+  else if(invSize<=20) mppt = 2;
+  else if(invSize<=40) mppt = 3;
+  else mppt = 4;
+
+  const dpsCcQty = mppt;
+  const trifasico = invSize >= 10;
+  const dpsCaLabel = trifasico ? 'Tetrapolar (3P+N), Un 275V/fase' : 'Bipolar (2P), Un 275V';
+
+  let battery = null;
+  if(gridMode==='offgrid'){
+    const autonomiaVal = parseFloat(document.getElementById('autonomiaVal').value) || 0;
+    const autonomiaUnit = document.getElementById('autonomiaUnit').value;
+    const dod = (parseFloat(document.getElementById('dodPct').value) || 90)/100;
+    const moduloKwh = parseFloat(document.getElementById('moduloKwh').value) || 5;
+    const invEff = 0.95;
+    const autonomiaDias = autonomiaUnit==='horas' ? autonomiaVal/24 : autonomiaVal;
+    const battKwhRaw = (dailyTarget * autonomiaDias) / (dod * invEff);
+    const moduleCount = moduloKwh>0 ? Math.ceil(battKwhRaw/moduloKwh) : 0;
+    const battKwhInstalled = moduleCount*moduloKwh;
+    battery = {autonomiaVal, autonomiaUnit, autonomiaDias, dod, moduloKwh, battKwhRaw, moduleCount, battKwhInstalled};
+  }
+
+  lastCalc = {consumo, periodo, hsp, pct, panelWp, mountMode, gridMode, requiredKwp, numPanels, actualKwp,
+              invSize, mppt, dpsCcQty, trifasico, dpsCaLabel, battery};
+
+  // paint results
+  document.getElementById('rKwp').innerHTML = requiredKwp.toFixed(2)+'<span> kWp</span>';
+  document.getElementById('rPanels').innerHTML = numPanels+'<span> unid.</span>';
+  document.getElementById('rKwpReal').textContent = actualKwp.toFixed(2)+' kWp';
+  document.getElementById('rInv').textContent = `${invSize} kW (${gridMode==='offgrid'?'híbrido/cargador':'string'}, ${trifasico?'trifásico':'monofásico'})`;
+  document.getElementById('rMppt').textContent = mppt+' trackers';
+  document.getElementById('rDpsCc').textContent = `${dpsCcQty} × Bipolar (2P), Un ≥1000Vdc, In 20kA, Tipo 2`;
+  document.getElementById('rDpsCa').textContent = `${dpsCcQty} × ${dpsCaLabel}, In 20kA, Tipo 2`;
+  document.getElementById('rHsp').textContent = hsp.toFixed(2)+' kWh/m²/día';
+  document.getElementById('offgridNote').style.display = gridMode==='offgrid' ? 'block':'none';
+
+  if(gridMode==='offgrid' && lastCalc.battery){
+    const b = lastCalc.battery;
+    document.getElementById('rowAutonomia').style.display = 'flex';
+    document.getElementById('rowBattKwh').style.display = 'flex';
+    document.getElementById('rowBattMod').style.display = 'flex';
+    document.getElementById('rAutonomia').textContent = `${b.autonomiaVal} ${b.autonomiaUnit} (DoD ${(b.dod*100).toFixed(0)}%)`;
+    document.getElementById('rBattKwh').textContent = `${b.battKwhRaw.toFixed(2)} kWh (instalado: ${b.battKwhInstalled.toFixed(1)} kWh)`;
+    document.getElementById('rBattMod').textContent = `${b.moduleCount} × ${b.moduloKwh} kWh`;
+  } else {
+    document.getElementById('rowAutonomia').style.display = 'none';
+    document.getElementById('rowBattKwh').style.display = 'none';
+    document.getElementById('rowBattMod').style.display = 'none';
+  }
+
+  document.getElementById('resultsCard').classList.add('show');
+  document.getElementById('budgetCard').classList.add('show');
+
+  // gauge
+  const gaugeMax = 7, circumference = 238.76;
+  const frac = Math.min(hsp/gaugeMax, 1);
+  document.getElementById('gaugeArc').style.strokeDashoffset = (circumference*(1-frac)).toFixed(1);
+  document.getElementById('gaugeNum').textContent = hsp.toFixed(1);
+
+  buildBudget();
+}
+
+function buildBudget(){
+  const body = document.getElementById('budgetBody');
+  body.innerHTML = '';
+  const railQty = Math.ceil(lastCalc.numPanels/2);
+  const items = [
+    {name:`Panel fotovoltaico ${lastCalc.panelWp}Wp`, qty: lastCalc.numPanels, price: 90,
+      categoryTest: c => c.includes('panel'), powerField:'wp', target: lastCalc.panelWp},
+    {name:`Inversor ${lastCalc.invSize}kW ${lastCalc.trifasico?'trifásico':'monofásico'}`, qty:1, price: Math.round(lastCalc.invSize*130),
+      categoryTest: c => c.includes('inversor') && (
+        lastCalc.gridMode==='ongrid'
+          ? (c.includes('on-grid') || c.includes('ongrid'))
+          : (c.includes('hibrid') || c.includes('off grid') || c.includes('off-grid') || c.includes('cargador'))
+      ) && (lastCalc.trifasico ? (c.includes('380') || c.includes('trifas') || c.includes('800')) : (c.includes('220') || !/380|800/.test(c))),
+      powerField:'kw', target: lastCalc.invSize},
+    {name:'Sistema de montaje (rieles y anclajes)', qty: railQty, price: 22,
+      categoryTest: c => c.includes('estructura'), powerField:null, target:null,
+      descPreferred: /riel|perfil|abrazadera|clamp|clip|anclaje|omega|zeta/},
+  ];
+  if(lastCalc.mountMode==='angulo'){
+    const angle = parseFloat(document.getElementById('tiltAngle').value) || 30;
+    items.push({name:`Estructura de elevación ${angle}°`, qty: railQty, price: 45,
+      categoryTest: c => c.includes('estructura'), powerField:null, target:null,
+      descPreferred: /triangular|angulo|inclinad/,
+      descAvoid: /riel|perfil|abrazadera|clamp|clip|anclaje/});
+  }
+  items.push(
+    {name:'Térmica de CC — Bipolar', qty: lastCalc.dpsCcQty, price: 30,
+      categoryTest: c => c.includes('proteccion') && c.includes('cc'), powerField:null, target:null,
+      descPreferred: /termomagnet|interruptor|llave|breaker/, descAvoid: /descargador|spd|dps/},
+    {name:'DPS de CC', qty: lastCalc.dpsCcQty, price: 45,
+      categoryTest: c => c.includes('proteccion') && c.includes('cc'), powerField:null, target:null,
+      descPreferred: /descargador|spd|dps/, descAvoid: /termomagnet|interruptor|llave|breaker/},
+    {name:'Cable Solar CC Negro 100m', qty: 1, price: 85,
+      categoryTest: c => c.includes('cable'), powerField:null, target:null,
+      descPreferred: /negro/, descAvoid: /rojo/},
+    {name:'Cable Solar CC Rojo 100m', qty: 1, price: 85,
+      categoryTest: c => c.includes('cable'), powerField:null, target:null,
+      descPreferred: /rojo/, descAvoid: /negro/},
+    {name:'Conectores MC4 (kit macho/hembra)', qty: lastCalc.mppt*2, price: 8,
+      categoryTest: c => c.includes('mc4') || c.includes('conector'), powerField:null, target:null}
+  );
+  if(document.getElementById('incluirCA').checked){
+    items.push(
+      {name:'Térmica de CA', qty: lastCalc.dpsCcQty, price: 25,
+        categoryTest: c => c.includes('proteccion') && c.includes('ca'), powerField:null, target:null,
+        descPreferred: /termomagnet|interruptor|disyuntor|breaker/, descAvoid: /descargador|spd|dps/},
+      {name:'DPS de CA — '+lastCalc.dpsCaLabel, qty: lastCalc.dpsCcQty, price: lastCalc.trifasico?110:60,
+        categoryTest: c => c.includes('proteccion') && c.includes('ca'), powerField:null, target:null,
+        descPreferred: /descargador|spd|dps/, descAvoid: /termomagnet|interruptor|disyuntor|breaker/}
+    );
+  }
+  if(lastCalc.gridMode==='offgrid' && lastCalc.battery){
+    const b = lastCalc.battery;
+    items.push({name:`Módulo de batería LFP ${b.moduloKwh}kWh`, qty: b.moduleCount, price: Math.round(b.moduloKwh*300),
+      categoryTest: c => c.includes('bateria'), powerField:'kwh', target: b.moduloKwh,
+      descPreferred: /litio|lifepo4|lfp/});
+  }
+
+  items.forEach(it=>{
+    const match = it.categoryTest ? findCatalogMatch(it.categoryTest, it.powerField, it.target, {descPreferred: it.descPreferred, descAvoid: it.descAvoid}) : null;
+    it.matched = !!match;
+    if(match){
+      it.name = (match.descripcion || it.name) + (match.note||'');
+      it.price = match.precio;
+      it.disponibilidad = match.disponibilidad;
+    }
+  });
+
+  // Mano de obra: explicit editable line (house style), suggested at 15% of hardware subtotal
+  const hardwareSubtotal = items.reduce((s,it)=>s+it.qty*it.price, 0);
+  items.push({name:'Mano de Obra/Instalación', qty:1, price: Math.round(hardwareSubtotal*0.15), matched:false});
+  lastBudgetItems = items;
+
+  items.forEach((it, idx)=>{
+    const tr = document.createElement('tr');
+    let tag = '';
+    if(it.matched){
+      tag = `<span style="color:var(--green);font-size:10px;"> ✓ catálogo${it.disponibilidad?' · '+it.disponibilidad:''}</span>`;
+    } else if(catalogItems && it.categoryTest){
+      tag = `<span style="color:var(--text-dim);font-size:10px;"> · valor por defecto (sin coincidencia en catálogo)</span>`;
+    }
+    tr.innerHTML = `
+      <td>${it.name}${tag}</td>
+      <td><input type="number" class="qtyInput" data-idx="${idx}" value="${it.qty}" min="0"></td>
+      <td><input type="number" class="priceInput" data-idx="${idx}" value="${it.price}" min="0" step="any"></td>
+      <td class="num subtotalCell" data-idx="${idx}">–</td>
+    `;
+    body.appendChild(tr);
+  });
+  recalcTotals();
+  document.querySelectorAll('.qtyInput,.priceInput').forEach(inp=>{
+    inp.addEventListener('input', recalcTotals);
+  });
+}
+
+function fmt(n){
+  const cur = document.getElementById('currency').value;
+  return (cur==='USD'?'US$ ':'$ ') + n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function recalcTotals(){
+  let subtotal = 0;
+  document.querySelectorAll('#budgetBody tr').forEach(tr=>{
+    const qty = parseFloat(tr.querySelector('.qtyInput').value) || 0;
+    const price = parseFloat(tr.querySelector('.priceInput').value) || 0;
+    const st = qty*price;
+    tr.querySelector('.subtotalCell').textContent = fmt(st);
+    subtotal += st;
+  });
+  const ivaOn = document.getElementById('ivaCheck').checked;
+  document.getElementById('tTotal').textContent = fmt(subtotal) + (ivaOn ? ' + IVA' : '');
+  document.getElementById('dolarNote').style.display = document.getElementById('currency').value==='USD' ? 'block' : 'none';
+  lastCalc.budgetTotals = {subtotal, ivaOn};
+}
+
+document.getElementById('currency').addEventListener('change', recalcTotals);
+document.getElementById('ivaCheck').addEventListener('change', recalcTotals);
+document.getElementById('incluirCA').addEventListener('change', ()=>{ if(lastCalc) buildBudget(); });
+
+function generarPDF(){
+  if(!lastCalc){ alert('Primero calculá el dimensionamiento.'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const cliente = document.getElementById('clienteNombre').value || 'Cliente a definir';
+  const fecha = new Date().toLocaleDateString('es-AR');
+
+  doc.setFillColor(18,33,47);
+  doc.rect(0,0,210,28,'F');
+
+  if(logoDataUrl && logoDims){
+    const maxH = 16, maxW = 40;
+    let w = logoDims.w, h = logoDims.h;
+    const ratio = Math.min(maxW/w, maxH/h);
+    w = w*ratio; h = h*ratio;
+    doc.addImage(logoDataUrl, logoFormat, 14, (28-h)/2, w, h);
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(9.5);
+    doc.text('Propuesta técnico-económica · Sistema Solar Fotovoltaico', 14+w+8, 16);
+  } else {
+    doc.setTextColor(242,169,59);
+    doc.setFontSize(18);
+    doc.text('Trivium Energía', 14, 13);
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(10);
+    doc.text('Propuesta técnico-económica · Sistema Solar Fotovoltaico', 14, 20);
+  }
+
+  doc.setTextColor(20,20,20);
+  doc.setFontSize(10);
+  doc.text(`Cliente / Obra: ${cliente}`, 14, 38);
+  doc.text(`Fecha: ${fecha}`, 150, 38);
+
+  doc.setFontSize(12);
+  doc.text('Datos del proyecto', 14, 50);
+  doc.setFontSize(9.5);
+  const projData = [
+    ['Consumo', `${lastCalc.consumo} kWh / ${lastCalc.periodo}`],
+    ['Tipo de conexión', lastCalc.gridMode==='offgrid' ? 'Off-grid' : 'On-grid'],
+    ['Tipo de montaje', lastCalc.mountMode==='coplanar' ? 'Coplanar' : 'Estructura en ángulo'],
+    ['Autoconsumo a cubrir', `${lastCalc.pct}%`],
+    ['HSP utilizado', `${lastCalc.hsp.toFixed(2)} kWh/m²/día`],
+  ];
+  doc.autoTable({ startY: 54, head:[['Parámetro','Valor']], body: projData, theme:'plain',
+    styles:{fontSize:9, overflow:'linebreak', cellPadding:2, valign:'top'},
+    columnStyles:{0:{cellWidth:60}, 1:{cellWidth:122}},
+    margin:{left:14,right:14},
+    headStyles:{fillColor:[22,40,58], textColor:255} });
+
+  let y = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(12);
+  doc.text('Resultado técnico', 14, y);
+  const techData = [
+    ['Potencia requerida', `${lastCalc.requiredKwp.toFixed(2)} kWp`],
+    ['Cantidad de paneles', `${lastCalc.numPanels} × ${lastCalc.panelWp} Wp`],
+    ['Potencia instalada real', `${lastCalc.actualKwp.toFixed(2)} kWp`],
+    ['Inversor sugerido', `${lastCalc.invSize} kW, ${lastCalc.trifasico?'trifásico':'monofásico'}`],
+    ['Trackers MPPT', `${lastCalc.mppt}`],
+    ['DPS CC', `${lastCalc.dpsCcQty} × Bipolar (2P), Un >=1000Vdc, In 20kA, Tipo 2`],
+    ['DPS CA', `${lastCalc.dpsCcQty} × ${lastCalc.dpsCaLabel}, In 20kA, Tipo 2`],
+  ];
+  if(lastCalc.gridMode==='offgrid' && lastCalc.battery){
+    const b = lastCalc.battery;
+    techData.push(['Autonomía', `${b.autonomiaVal} ${b.autonomiaUnit} (DoD ${(b.dod*100).toFixed(0)}%)`]);
+    techData.push(['Capacidad de baterías', `${b.battKwhRaw.toFixed(2)} kWh requeridos -> ${b.battKwhInstalled.toFixed(1)} kWh instalados`]);
+    techData.push(['Módulos de batería', `${b.moduleCount} × ${b.moduloKwh} kWh`]);
+  }
+  doc.autoTable({ startY: y+4, head:[['Ítem','Especificación']], body: techData, theme:'plain',
+    styles:{fontSize:9, overflow:'linebreak', cellPadding:2, valign:'top'},
+    columnStyles:{0:{cellWidth:50}, 1:{cellWidth:132}},
+    margin:{left:14,right:14},
+    headStyles:{fillColor:[22,40,58], textColor:255} });
+
+  y = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(12);
+  doc.text('Presupuesto', 14, y);
+  const cur = document.getElementById('currency').value;
+  const pref = cur==='USD'?'US$ ':'$ ';
+  const showPrices = document.getElementById('showPricesPdf').checked;
+  const budgetRows = [];
+  document.querySelectorAll('#budgetBody tr').forEach((tr, idx)=>{
+    const meta = lastBudgetItems[idx] || {};
+    const name = meta.name || tr.children[0].textContent;
+    const qty = tr.querySelector('.qtyInput').value;
+    const price = parseFloat(tr.querySelector('.priceInput').value)||0;
+    const st = qty*price;
+    if(showPrices) budgetRows.push([qty, name, pref+price.toFixed(2), pref+st.toFixed(2)]);
+    else budgetRows.push([qty, name]);
+  });
+  doc.autoTable({ startY: y+4,
+    head: showPrices ? [['Cant.','Producto','P. Unitario','Subtotal']] : [['Cantidad','Producto']],
+    body: budgetRows, theme:'striped',
+    styles:{fontSize:8, overflow:'linebreak', cellPadding:3, valign:'top'},
+    headStyles:{fillColor:[22,40,58], textColor:255},
+    margin:{left:14,right:14},
+    columnStyles: showPrices
+      ? {0:{cellWidth:14, halign:'center'}, 1:{cellWidth:98}, 2:{cellWidth:35, halign:'right'}, 3:{cellWidth:35, halign:'right'}}
+      : {0:{cellWidth:16, halign:'center'}, 1:{cellWidth:166}} });
+
+  y = doc.lastAutoTable.finalY + 10;
+  const t = lastCalc.budgetTotals;
+  doc.setFontSize(14);
+  doc.setTextColor(200,120,20);
+  doc.text(`TOTAL: ${pref}${t.subtotal.toFixed(2)}${t.ivaOn ? ' + IVA' : ''}`, 130, y);
+  if(cur==='USD'){
+    y += 5;
+    doc.setFontSize(8);
+    doc.setTextColor(120,120,120);
+    doc.text('(Valor dólar venta Banco Nación)', 130, y);
+  }
+
+  y += 12;
+  doc.setTextColor(120,120,120);
+  doc.setFontSize(8);
+  doc.text('Presupuesto válido por 15 días. Precios sujetos a modificación por variación de tipo de cambio.', 14, y);
+  doc.text('Valores técnicos orientativos: validar tensiones y corrientes contra ficha técnica final del equipamiento elegido.', 14, y+5);
+
+  doc.save(`Presupuesto_Solar_${cliente.replace(/\s+/g,'_')}.pdf`);
+}
+</script>
+</body>
+</html>
