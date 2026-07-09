@@ -1436,6 +1436,8 @@ async function extractPdfText(file){
 
 async function extractImageText(file, statusEl){
   const worker = await Tesseract.createWorker('spa', 1, {
+    workerPath: 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/worker.min.js',
+    corePath: 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js-core/4.0.4/tesseract-core.wasm.js',
     logger: m => { if(m.status==='recognizing text') statusEl.textContent = `Aplicando OCR... ${Math.round(m.progress*100)}%`; }
   });
   const { data:{ text } } = await worker.recognize(file);
@@ -1510,7 +1512,10 @@ async function analizarFactura(){
   }catch(err){
     console.error('Error en analizarFactura:', err);
     statusEl.style.color = 'var(--danger)';
-    statusEl.textContent = '⚠ No se pudo leer el archivo: '+(err.message||err)+'. Completá la tarifa manualmente. (Si esto persiste, abrí la consola del navegador — F12 — y contame qué error aparece ahí).';
+    const tip = file.type!=='application/pdf'
+      ? ' Si la foto sigue sin poder leerse, probá convertirla a PDF antes de subirla (desde el celular: Compartir → Imprimir → Guardar como PDF), suele funcionar mejor que el OCR directo sobre la imagen.'
+      : '';
+    statusEl.textContent = '⚠ No se pudo leer el archivo: '+(err.message||err)+'. Completá la tarifa manualmente.'+tip;
   }
 }
 
@@ -2096,12 +2101,4 @@ function editClient(id){
   document.getElementById('cl_fecha').value = c.fecha||'';
   document.getElementById('cl_sistema').value = c.sistema||'';
   document.getElementById('cl_costo').value = c.costo||'';
-  document.getElementById('cl_notas').value = c.notas||'';
-  window.scrollTo(0,0);
-}
-
-function renderClientList(){
-  const el = document.getElementById('cl_list');
-  const q = normStr(document.getElementById('cl_buscar').value);
-  let list = clientsCache.slice().sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
-  if(q) list = list.filter(c=>normStr(c.nombre).includ
+  documen
