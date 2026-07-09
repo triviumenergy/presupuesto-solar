@@ -12,7 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
-<script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+<script>window.__pdfWorkerSrcDefault = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <style>
   :root{
     --ink:#0D1A13;
@@ -1405,7 +1405,24 @@ function generarPDF(){
 let lastSavings = null;
 let ahChart = null;
 
+let pdfWorkerReady = false;
+async function ensurePdfWorker(){
+  if(pdfWorkerReady) return;
+  try{
+    const resp = await fetch(window.__pdfWorkerSrcDefault);
+    if(!resp.ok) throw new Error('No se pudo descargar el worker (status '+resp.status+')');
+    const code = await resp.text();
+    const blob = new Blob([code], {type:'text/javascript'});
+    pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
+  }catch(e){
+    console.warn('Fallback: usando workerSrc directo por CDN', e);
+    pdfjsLib.GlobalWorkerOptions.workerSrc = window.__pdfWorkerSrcDefault;
+  }
+  pdfWorkerReady = true;
+}
+
 async function extractPdfText(file){
+  await ensurePdfWorker();
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({data: buf}).promise;
   let fullText = '';
@@ -1491,8 +1508,9 @@ async function analizarFactura(){
       ? `✓ Confianza ${result.confianza} — ${result.metodo}.${ocrWarning}`
       : `⚠ ${result.metodo}.${ocrWarning} Completá la tarifa a mano.`;
   }catch(err){
+    console.error('Error en analizarFactura:', err);
     statusEl.style.color = 'var(--danger)';
-    statusEl.textContent = '⚠ No se pudo leer el archivo: '+err.message+'. Completá la tarifa manualmente.';
+    statusEl.textContent = '⚠ No se pudo leer el archivo: '+(err.message||err)+'. Completá la tarifa manualmente. (Si esto persiste, abrí la consola del navegador — F12 — y contame qué error aparece ahí).';
   }
 }
 
@@ -2086,53 +2104,4 @@ function renderClientList(){
   const el = document.getElementById('cl_list');
   const q = normStr(document.getElementById('cl_buscar').value);
   let list = clientsCache.slice().sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
-  if(q) list = list.filter(c=>normStr(c.nombre).includes(q));
-  if(list.length === 0){ el.innerHTML = '<div class="hint">Sin clientes guardados.</div>'; return; }
-  el.innerHTML = list.map(c=>`
-    <div class="spec-row" style="flex-direction:column;align-items:flex-start;gap:4px;">
-      <div style="display:flex;justify-content:space-between;width:100%;">
-        <strong>${c.nombre}</strong>
-        <span style="color:var(--amber);font-size:11.5px;">${c.estado||''}</span>
-      </div>
-      <div style="font-size:12px;color:var(--text-dim);">${c.ubicacion||''} ${c.contacto?'· '+c.contacto:''}</div>
-      <div style="font-size:12px;color:var(--text-dim);">${c.sistema||''} ${c.costo?'· US$ '+c.costo:''}</div>
-      <div style="display:flex;gap:12px;margin-top:4px;">
-        <a href="#" onclick="editClient('${c.id}'); return false;" style="color:var(--sky);font-size:11.5px;">Editar</a>
-        <a href="#" onclick="deleteClientById('${c.id}'); return false;" style="color:var(--danger);font-size:11.5px;">Eliminar</a>
-      </div>
-    </div>
-  `).join('');
-}
-
-function exportClientsJSON(){
-  const blob = new Blob([JSON.stringify(clientsCache, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'clientes_backup.json';
-  a.click();
-}
-
-function importClientsJSON(file){
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = async function(ev){
-    try{
-      const imported = JSON.parse(ev.target.result);
-      if(!Array.isArray(imported)) throw new Error('Formato inválido');
-      clientsCache = imported;
-      if(STORAGE_AVAILABLE){
-        for(const c of clientsCache){
-          try{ await window.storage.set('client:'+c.id, JSON.stringify(c), false); }catch(e){}
-        }
-      }
-      renderClientList();
-      alert('Clientes importados correctamente.');
-    }catch(err){ alert('No se pudo importar: '+err.message); }
-  };
-  reader.readAsText(file);
-}
-
-loadClientsFromStorage();
-</script>
-</body>
-</html>
+  if(q) list = list.filter(c=>normStr(c.nombre).includ
