@@ -11,6 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <style>
   :root{
@@ -1296,8 +1297,8 @@ function generarPDF(){
 
       <label>Consumo mensual (kWh)</label>
       <input type="number" id="ah_consumo" step="any" placeholder="Ej: 450">
-      <label>Factura o cuadro tarifario (PDF, opcional)</label>
-      <input type="file" id="ah_facturaFile" accept="application/pdf">
+      <label>Factura o cuadro tarifario (PDF o foto JPG/PNG, opcional)</label>
+      <input type="file" id="ah_facturaFile" accept="application/pdf,image/*">
       <button class="btn-secondary" style="margin-top:8px;" onclick="analizarFactura()">✦ Analizar y completar tarifa/consumo</button>
       <div class="hint mono" id="ah_facturaStatus"></div>
 
@@ -1416,21 +1417,47 @@ async function extractPdfText(file){
   return fullText;
 }
 
+async function extractImageText(file, statusEl){
+  const worker = await Tesseract.createWorker('spa', 1, {
+    logger: m => { if(m.status==='recognizing text') statusEl.textContent = `Aplicando OCR... ${Math.round(m.progress*100)}%`; }
+  });
+  const { data:{ text } } = await worker.recognize(file);
+  await worker.terminate();
+  return text;
+}
+
+function extractConsumoActiva(norm){
+  // patrón de medidor tipo "Activa <lect.ant> <lect.act> <diferencia> <factor> <consumo>"
+  let m = norm.match(/activa\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/);
+  if(m) return parseNumber(m[5]);
+  let m2 = norm.match(/consumo[^0-9]{0,25}([\d.,]+)\s*kwh/);
+  if(m2) return parseNumber(m2[1]);
+  let m3 = norm.match(/([\d.,]+)\s*kwh/);
+  if(m3) return parseNumber(m3[1]);
+  return null;
+}
+
 function tryParseTariff(text){
   const norm = text.toLowerCase();
 
-  // 1) mención directa de $/kWh (típico de cuadros tarifarios)
-  let m = norm.match(/\$\s*([\d.,]+)\s*(?:\/|por)\s*kwh/);
-  if(m){
-    return { tarifa: parseNumber(m[1]), consumo: null, metodo: 'mención directa de $/kWh', confianza: 'alta' };
+  // 1) "Cargo Variable" declarado en $/kWh (el dato correcto: NO usar total/consumo,
+  //    que incluye cargos fijos e impuestos que no se ahorran con generación propia)
+  let mCV = norm.match(/cargo\s*variable[^\d]{0,60}?([\d]{1,4}[.,]\d{2,4})/);
+  if(mCV){
+    const tarifa = parseNumber(mCV[1]);
+    if(tarifa > 20 && tarifa < 1000){
+      return { tarifa, consumo: extractConsumoActiva(norm), metodo: 'Cargo Variable declarado en la factura (no incluye cargos fijos ni impuestos)', confianza: 'alta' };
+    }
   }
 
-  // 2) buscar consumo en kWh
-  let consumo = null;
-  let mc = norm.match(/consumo[^0-9]{0,25}([\d.,]+)\s*kwh/) || norm.match(/([\d.,]+)\s*kwh/);
-  if(mc) consumo = parseNumber(mc[1]);
+  // 2) mención directa de $/kWh (cuadros tarifarios)
+  let m = norm.match(/\$\s*([\d.,]+)\s*(?:\/|por)\s*kwh/);
+  if(m){
+    return { tarifa: parseNumber(m[1]), consumo: extractConsumoActiva(norm), metodo: 'mención directa de $/kWh', confianza: 'alta' };
+  }
 
-  // 3) buscar importe/total facturado
+  // 3) fallback: total/consumo (sobreestima porque incluye cargos fijos e impuestos)
+  const consumo = extractConsumoActiva(norm);
   let total = null;
   let mt = norm.match(/total\s*a\s*pagar[^0-9$]{0,20}\$?\s*([\d.,]+)/) ||
            norm.match(/importe\s*total[^0-9$]{0,20}\$?\s*([\d.,]+)/) ||
@@ -1439,7 +1466,7 @@ function tryParseTariff(text){
   if(mt) total = parseNumber(mt[1]);
 
   if(total && consumo && consumo>0){
-    return { tarifa: total/consumo, consumo, metodo: `calculado (total $${total.toFixed(0)} / ${consumo}kWh)`, confianza: 'media' };
+    return { tarifa: total/consumo, consumo, metodo: `calculado (total $${total.toFixed(0)} / ${consumo}kWh) — ojo, esto sobreestima porque incluye cargos fijos e impuestos que no se ahorran`, confianza: 'baja' };
   }
   return { tarifa: null, consumo, metodo: 'no se pudo determinar la tarifa', confianza: 'baja' };
 }
@@ -1447,11 +1474,11 @@ function tryParseTariff(text){
 async function analizarFactura(){
   const file = document.getElementById('ah_facturaFile').files[0];
   const statusEl = document.getElementById('ah_facturaStatus');
-  if(!file){ alert('Subí primero un PDF de la factura o el cuadro tarifario.'); return; }
+  if(!file){ alert('Subí primero la factura o el cuadro tarifario (PDF o foto).'); return; }
   statusEl.style.color = 'var(--text-dim)';
-  statusEl.textContent = 'Leyendo el PDF...';
+  statusEl.textContent = file.type==='application/pdf' ? 'Leyendo el PDF...' : 'Preparando imagen para OCR...';
   try{
-    const text = await extractPdfText(file);
+    const text = file.type==='application/pdf' ? await extractPdfText(file) : await extractImageText(file, statusEl);
     const result = tryParseTariff(text);
 
     if(result.tarifa) document.getElementById('ah_tarifa').value = result.tarifa.toFixed(2);
@@ -1459,12 +1486,13 @@ async function analizarFactura(){
 
     const confColor = result.confianza==='alta' ? 'var(--green)' : (result.confianza==='media' ? 'var(--amber)' : 'var(--danger)');
     statusEl.style.color = confColor;
+    const ocrWarning = file.type!=='application/pdf' ? ' (leído por OCR de una imagen — revisá los números con más cuidado, es menos preciso que un PDF con texto).' : '';
     statusEl.textContent = result.tarifa
-      ? `✓ Confianza ${result.confianza} — ${result.metodo}. Verificá el valor antes de usarlo.`
-      : `⚠ ${result.metodo}. El formato de esta factura no coincide con los patrones esperados — completá la tarifa a mano.`;
+      ? `✓ Confianza ${result.confianza} — ${result.metodo}.${ocrWarning}`
+      : `⚠ ${result.metodo}.${ocrWarning} Completá la tarifa a mano.`;
   }catch(err){
     statusEl.style.color = 'var(--danger)';
-    statusEl.textContent = '⚠ No se pudo leer el PDF: '+err.message+'. Completá la tarifa manualmente.';
+    statusEl.textContent = '⚠ No se pudo leer el archivo: '+err.message+'. Completá la tarifa manualmente.';
   }
 }
 
