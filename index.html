@@ -1330,8 +1330,9 @@ function generarPDF(){
           <input type="number" id="ah_degrad" value="0.5" step="any">
         </div>
         <div>
-          <label>Inflación anual de tarifa (%)</label>
-          <input type="number" id="ah_inflacion" value="30" step="any">
+          <label>Crecimiento anual de la tarifa en USD (%)</label>
+          <input type="number" id="ah_inflacion" value="3" step="any">
+          <div class="hint" style="margin-top:4px;">No es la inflación en pesos: es cuánto estimás que sube la tarifa medida en dólares (más estable en el tiempo). 2-5% es un rango razonable; evitá poner la inflación en pesos acá, distorsiona todo el cálculo.</div>
         </div>
       </div>
       <label>Horizonte de análisis (años)</label>
@@ -1348,15 +1349,16 @@ function generarPDF(){
       </div>
       <div class="spec-list">
         <div class="spec-row"><span class="lbl">Generación anual estimada (año 1)</span><span class="val" id="ah_genAnual">–</span></div>
-        <div class="spec-row"><span class="lbl">Ahorro acumulado al horizonte (bruto)</span><span class="val" id="ah_ahorroAcum">–</span></div>
-        <div class="spec-row"><span class="lbl">Ahorro neto al horizonte (ahorro − costo sistema)</span><span class="val" id="ah_ahorroNeto">–</span></div>
-        <div class="spec-row"><span class="lbl">Costo del sistema (en $ locales)</span><span class="val" id="ah_costoLocal">–</span></div>
+        <div class="spec-row"><span class="lbl">Ahorro acumulado al horizonte (bruto, USD)</span><span class="val" id="ah_ahorroAcum">–</span></div>
+        <div class="spec-row"><span class="lbl">Ahorro neto al horizonte (ahorro − costo sistema, USD)</span><span class="val" id="ah_ahorroNeto">–</span></div>
+        <div class="spec-row"><span class="lbl">Costo del sistema</span><span class="val" id="ah_costoLocal">–</span></div>
       </div>
+      <div class="hint" style="margin-top:10px;">Todo el flujo se calcula y acumula en dólares, para no mezclar pesos de años distintos entre sí (no son comparables por la inflación). El equivalente en pesos de hoy que se muestra es solo referencial.</div>
       <canvas id="ah_chart" style="margin-top:16px;max-height:260px;"></canvas>
     </div>
   </div>
 
-  <div class="footer-note">Proyección simplificada: no contempla mantenimiento, cambios regulatorios de compensación de excedentes, ni variaciones no lineales del tipo de cambio o la inflación. Uso orientativo para conversación comercial.</div>
+  <div class="footer-note">Proyección simplificada: no contempla mantenimiento ni cambios regulatorios de compensación de excedentes. El cálculo asume que la tarifa en dólares crece a la tasa que definiste — no acumula inflación en pesos directamente, para evitar comparar pesos de años distintos entre sí. Uso orientativo para conversación comercial.</div>
 </div>
 </div>
 
@@ -1560,7 +1562,7 @@ function calcularAhorro(){
   const costoUsd = parseFloat(document.getElementById('ah_costoUsd').value);
   const tipoCambio = parseFloat(document.getElementById('ah_tipoCambio').value);
   const degrad = (parseFloat(document.getElementById('ah_degrad').value)||0.5)/100;
-  const inflacion = (parseFloat(document.getElementById('ah_inflacion').value)||30)/100;
+  const crecUsd = (parseFloat(document.getElementById('ah_inflacion').value)||3)/100;
   const horizonte = parseInt(document.getElementById('ah_horizonte').value)||25;
 
   if(!consumo||!tarifa||!kwp||!hsp||!costoUsd||!tipoCambio){
@@ -1570,37 +1572,39 @@ function calcularAhorro(){
 
   const PR = 0.77;
   const consumoAnual = consumo*12;
-  const costoLocal = costoUsd*tipoCambio;
+  const tarifaUsd0 = tarifa / tipoCambio; // tarifa de hoy expresada en USD
 
-  let acumulado = -costoLocal;
-  const years = [], cumSeries = [];
-  let ahorroAno1 = 0, genAno1 = 0, paybackYear = null;
+  // Todo el flujo se acumula en USD para evitar mezclar pesos de distintos años
+  // (pesos nominales de dentro de 25 años NO son comparables a pesos de hoy sin descuento).
+  let acumuladoUsd = -costoUsd;
+  const years = [], cumSeriesUsd = [];
+  let ahorroAno1Usd = 0, genAno1 = 0, paybackYear = null;
 
   for(let y=0; y<horizonte; y++){
     const genAnual = kwp * hsp * 365 * PR * Math.pow(1-degrad, y);
     const cubierto = Math.min(genAnual, consumoAnual);
-    const tarifaY = tarifa * Math.pow(1+inflacion, y);
-    const ahorroY = cubierto * tarifaY;
-    if(y===0){ ahorroAno1 = ahorroY; genAno1 = genAnual; }
-    const prevAcumulado = acumulado;
-    acumulado += ahorroY;
+    const tarifaUsdY = tarifaUsd0 * Math.pow(1+crecUsd, y);
+    const ahorroYUsd = cubierto * tarifaUsdY;
+    if(y===0){ ahorroAno1Usd = ahorroYUsd; genAno1 = genAnual; }
+    const prevAcumulado = acumuladoUsd;
+    acumuladoUsd += ahorroYUsd;
     years.push(y+1);
-    cumSeries.push(acumulado);
-    if(paybackYear===null && acumulado>=0){
-      const frac = ahorroY>0 ? (-prevAcumulado)/ahorroY : 0;
+    cumSeriesUsd.push(acumuladoUsd);
+    if(paybackYear===null && acumuladoUsd>=0){
+      const frac = ahorroYUsd>0 ? (-prevAcumulado)/ahorroYUsd : 0;
       paybackYear = y + frac;
     }
   }
 
-  lastSavings = {consumo, tarifa, kwp, hsp, costoUsd, tipoCambio, degrad, inflacion, horizonte,
-    costoLocal, ahorroAno1, genAno1, acumulado, paybackYear, years, cumSeries};
+  lastSavings = {consumo, tarifa, kwp, hsp, costoUsd, tipoCambio, degrad, crecUsd, horizonte,
+    ahorroAno1Usd, genAno1, acumuladoUsd, paybackYear, years, cumSeriesUsd};
 
-  document.getElementById('ah_ahorro1').innerHTML = '$ '+ahorroAno1.toLocaleString('es-AR',{maximumFractionDigits:0});
+  document.getElementById('ah_ahorro1').innerHTML = `US$ ${ahorroAno1Usd.toFixed(0)}<span> (≈ $${(ahorroAno1Usd*tipoCambio).toLocaleString('es-AR',{maximumFractionDigits:0})} hoy)</span>`;
   document.getElementById('ah_payback').innerHTML = paybackYear ? paybackYear.toFixed(1)+'<span> años</span>' : 'No recupera';
   document.getElementById('ah_genAnual').textContent = genAno1.toFixed(0)+' kWh/año';
-  document.getElementById('ah_ahorroAcum').textContent = '$ '+(acumulado+costoLocal).toLocaleString('es-AR',{maximumFractionDigits:0});
-  document.getElementById('ah_ahorroNeto').textContent = '$ '+acumulado.toLocaleString('es-AR',{maximumFractionDigits:0});
-  document.getElementById('ah_costoLocal').textContent = '$ '+costoLocal.toLocaleString('es-AR',{maximumFractionDigits:0});
+  document.getElementById('ah_ahorroAcum').textContent = `US$ ${(acumuladoUsd+costoUsd).toLocaleString('en-US',{maximumFractionDigits:0})}`;
+  document.getElementById('ah_ahorroNeto').textContent = `US$ ${acumuladoUsd.toLocaleString('en-US',{maximumFractionDigits:0})}`;
+  document.getElementById('ah_costoLocal').textContent = `US$ ${costoUsd.toLocaleString('en-US',{maximumFractionDigits:0})} (≈ $${(costoUsd*tipoCambio).toLocaleString('es-AR',{maximumFractionDigits:0})} hoy)`;
   document.getElementById('ahorroResultsCard').classList.add('show');
 
   const ctx = document.getElementById('ah_chart').getContext('2d');
@@ -1608,8 +1612,8 @@ function calcularAhorro(){
   ahChart = new Chart(ctx, {
     type: 'line',
     data: { labels: years, datasets: [{
-      label: 'Flujo de caja acumulado',
-      data: cumSeries,
+      label: 'Flujo de caja acumulado (USD)',
+      data: cumSeriesUsd,
       borderColor: '#F2A93B', backgroundColor: 'rgba(242,169,59,0.15)',
       fill: true, tension: 0.25, pointRadius: 0
     }]},
@@ -1617,7 +1621,7 @@ function calcularAhorro(){
       plugins:{ legend:{labels:{color:'#EAF0F4'}} },
       scales:{
         x:{ title:{display:true, text:'Año', color:'#9FB2C0'}, ticks:{color:'#9FB2C0'}, grid:{color:'rgba(255,255,255,0.06)'} },
-        y:{ title:{display:true, text:'$ acumulado', color:'#9FB2C0'}, ticks:{color:'#9FB2C0'}, grid:{color:'rgba(255,255,255,0.06)'} }
+        y:{ title:{display:true, text:'US$ acumulado', color:'#9FB2C0'}, ticks:{color:'#9FB2C0'}, grid:{color:'rgba(255,255,255,0.06)'} }
       }
     }
   });
@@ -1628,7 +1632,7 @@ function buildScenario(pct){
   const tarifa = parseFloat(document.getElementById('ah_tarifa').value);
   const hsp = parseFloat(document.getElementById('ah_hsp').value);
   const degrad = (parseFloat(document.getElementById('ah_degrad').value)||0.5)/100;
-  const inflacion = (parseFloat(document.getElementById('ah_inflacion').value)||30)/100;
+  const crecUsd = (parseFloat(document.getElementById('ah_inflacion').value)||3)/100;
   const horizonte = parseInt(document.getElementById('ah_horizonte').value)||25;
   const tipoCambio = parseFloat(document.getElementById('ah_tipoCambio').value);
   const PR = 0.77;
@@ -1637,18 +1641,18 @@ function buildScenario(pct){
   const dailyTarget = (consumoAnual/365) * (pct/100);
   const kwp = dailyTarget / (hsp*PR);
   const costoUsd = lastCalc && lastCalc.budgetTotals ? lastCalc.budgetTotals.subtotal * (kwp/lastCalc.actualKwp) : (parseFloat(document.getElementById('ah_costoUsd').value)||0)*(kwp/parseFloat(document.getElementById('ah_kwp').value));
-  const costoLocal = costoUsd*tipoCambio;
-  let running = -costoLocal, paybackYear=null, ahorroAno1=0;
+  const tarifaUsd0 = tarifa / tipoCambio;
+  let runningUsd = -costoUsd, paybackYear=null, ahorroAno1Usd=0;
   for(let y=0;y<horizonte;y++){
     const genAnual = kwp*hsp*365*PR*Math.pow(1-degrad,y);
     const cubierto = Math.min(genAnual, consumoAnual);
-    const tarifaY = tarifa*Math.pow(1+inflacion,y);
-    const ahorroY = cubierto*tarifaY;
-    if(y===0) ahorroAno1 = ahorroY;
-    const prev = running; running += ahorroY;
-    if(paybackYear===null && running>=0){ const frac = ahorroY>0?(-prev)/ahorroY:0; paybackYear = y+frac; }
+    const tarifaUsdY = tarifaUsd0*Math.pow(1+crecUsd,y);
+    const ahorroYUsd = cubierto*tarifaUsdY;
+    if(y===0) ahorroAno1Usd = ahorroYUsd;
+    const prev = runningUsd; runningUsd += ahorroYUsd;
+    if(paybackYear===null && runningUsd>=0){ const frac = ahorroYUsd>0?(-prev)/ahorroYUsd:0; paybackYear = y+frac; }
   }
-  return {pct, kwp, costoUsd, costoLocal, ahorroAno1, paybackYear};
+  return {pct, kwp, costoUsd, ahorroAno1Usd, paybackYear};
 }
 
 function generarPropuestaPDF(){
@@ -1718,8 +1722,8 @@ function generarPropuestaPDF(){
   const s = lastSavings;
   const savRows = [
     ['Costo del sistema', `US$ ${s.costoUsd.toLocaleString('es-AR')}`],
-    ['Ahorro estimado año 1', `$ ${s.ahorroAno1.toLocaleString('es-AR',{maximumFractionDigits:0})}`],
-    ['Ahorro neto acumulado (a '+s.horizonte+' años)', `$ ${s.acumulado.toLocaleString('es-AR',{maximumFractionDigits:0})}`],
+    ['Ahorro estimado año 1', `US$ ${s.ahorroAno1Usd.toFixed(0)}`],
+    ['Ahorro neto acumulado (a '+s.horizonte+' años)', `US$ ${s.acumuladoUsd.toLocaleString('en-US',{maximumFractionDigits:0})}`],
     ['Recupero de la inversión (payback)', s.paybackYear ? `${s.paybackYear.toFixed(1)} años` : 'No recupera en el horizonte'],
     ['Horizonte analizado', `${s.horizonte} años`],
   ];
@@ -1744,7 +1748,7 @@ function generarPropuestaPDF(){
       ['Escenario', `${lastCalc.pct}% autoconsumo`, `${pctAlt}% autoconsumo`],
       ['Potencia', `${lastCalc.actualKwp.toFixed(2)} kWp`, `${alt.kwp.toFixed(2)} kWp`],
       ['Costo estimado', `US$ ${s.costoUsd.toLocaleString('es-AR')}`, `US$ ${alt.costoUsd.toLocaleString('es-AR',{maximumFractionDigits:0})}`],
-      ['Ahorro año 1', `$ ${s.ahorroAno1.toLocaleString('es-AR',{maximumFractionDigits:0})}`, `$ ${alt.ahorroAno1.toLocaleString('es-AR',{maximumFractionDigits:0})}`],
+      ['Ahorro año 1', `US$ ${s.ahorroAno1Usd.toFixed(0)}`, `US$ ${alt.ahorroAno1Usd.toFixed(0)}`],
       ['Payback', s.paybackYear?`${s.paybackYear.toFixed(1)} años`:'-', alt.paybackYear?`${alt.paybackYear.toFixed(1)} años`:'-'],
     ];
     doc.autoTable({ startY:y+2, head:[['','Escenario actual','Escenario alternativo']], body: compRows,
@@ -2074,27 +2078,4 @@ async function saveClient(){
     sistema: document.getElementById('cl_sistema').value,
     costo: document.getElementById('cl_costo').value,
     notas: document.getElementById('cl_notas').value,
-    updatedAt: new Date().toISOString()
-  };
-  clientsCache = clientsCache.filter(c=>c.id !== id);
-  clientsCache.push(record);
-  if(STORAGE_AVAILABLE){
-    try{ await window.storage.set('client:'+id, JSON.stringify(record), false); }
-    catch(e){ alert('No se pudo guardar en el almacenamiento persistente, pero quedó guardado en esta sesión. Exportá un backup en JSON.'); }
-  }
-  renderClientList();
-  ['cl_id','cl_nombre','cl_ubicacion','cl_contacto','cl_sistema','cl_costo','cl_notas'].forEach(i=>document.getElementById(i).value='');
-  document.getElementById('cl_estado').value = 'Consulta';
-}
-
-async function deleteClientById(id){
-  clientsCache = clientsCache.filter(c=>c.id !== id);
-  if(STORAGE_AVAILABLE){ try{ await window.storage.delete('client:'+id, false); }catch(e){} }
-  renderClientList();
-}
-
-function editClient(id){
-  const c = clientsCache.find(x=>x.id===id);
-  if(!c) return;
-  document.getElementById('cl_id').value = c.id;
-  document.getElementById('cl_nombre').value = c.nombre||
+    up
