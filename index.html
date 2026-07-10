@@ -1348,7 +1348,8 @@ function generarPDF(){
       </div>
       <div class="spec-list">
         <div class="spec-row"><span class="lbl">Generación anual estimada (año 1)</span><span class="val" id="ah_genAnual">–</span></div>
-        <div class="spec-row"><span class="lbl">Ahorro acumulado al horizonte</span><span class="val" id="ah_ahorroAcum">–</span></div>
+        <div class="spec-row"><span class="lbl">Ahorro acumulado al horizonte (bruto)</span><span class="val" id="ah_ahorroAcum">–</span></div>
+        <div class="spec-row"><span class="lbl">Ahorro neto al horizonte (ahorro − costo sistema)</span><span class="val" id="ah_ahorroNeto">–</span></div>
         <div class="spec-row"><span class="lbl">Costo del sistema (en $ locales)</span><span class="val" id="ah_costoLocal">–</span></div>
       </div>
       <canvas id="ah_chart" style="margin-top:16px;max-height:260px;"></canvas>
@@ -1597,7 +1598,8 @@ function calcularAhorro(){
   document.getElementById('ah_ahorro1').innerHTML = '$ '+ahorroAno1.toLocaleString('es-AR',{maximumFractionDigits:0});
   document.getElementById('ah_payback').innerHTML = paybackYear ? paybackYear.toFixed(1)+'<span> años</span>' : 'No recupera';
   document.getElementById('ah_genAnual').textContent = genAno1.toFixed(0)+' kWh/año';
-  document.getElementById('ah_ahorroAcum').textContent = '$ '+(acumulado+costoLocal).toLocaleString('es-AR',{maximumFractionDigits:0})+' (ahorro bruto)';
+  document.getElementById('ah_ahorroAcum').textContent = '$ '+(acumulado+costoLocal).toLocaleString('es-AR',{maximumFractionDigits:0});
+  document.getElementById('ah_ahorroNeto').textContent = '$ '+acumulado.toLocaleString('es-AR',{maximumFractionDigits:0});
   document.getElementById('ah_costoLocal').textContent = '$ '+costoLocal.toLocaleString('es-AR',{maximumFractionDigits:0});
   document.getElementById('ahorroResultsCard').classList.add('show');
 
@@ -1717,6 +1719,7 @@ function generarPropuestaPDF(){
   const savRows = [
     ['Costo del sistema', `US$ ${s.costoUsd.toLocaleString('es-AR')}`],
     ['Ahorro estimado año 1', `$ ${s.ahorroAno1.toLocaleString('es-AR',{maximumFractionDigits:0})}`],
+    ['Ahorro neto acumulado (a '+s.horizonte+' años)', `$ ${s.acumulado.toLocaleString('es-AR',{maximumFractionDigits:0})}`],
     ['Recupero de la inversión (payback)', s.paybackYear ? `${s.paybackYear.toFixed(1)} años` : 'No recupera en el horizonte'],
     ['Horizonte analizado', `${s.horizonte} años`],
   ];
@@ -2094,11 +2097,4 @@ function editClient(id){
   const c = clientsCache.find(x=>x.id===id);
   if(!c) return;
   document.getElementById('cl_id').value = c.id;
-  document.getElementById('cl_nombre').value = c.nombre||'';
-  document.getElementById('cl_ubicacion').value = c.ubicacion||'';
-  document.getElementById('cl_contacto').value = c.contacto||'';
-  document.getElementById('cl_estado').value = c.estado||'Consulta';
-  document.getElementById('cl_fecha').value = c.fecha||'';
-  document.getElementById('cl_sistema').value = c.sistema||'';
-  document.getElementById('cl_costo').value = c.costo||'';
-  documen
+  document.getElementById('cl_nombre').value = c.nombre||
