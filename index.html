@@ -156,6 +156,10 @@
   .theme-toggle{padding:9px 14px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
     color:var(--text);font-size:12.5px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;flex-shrink:0;}
   .theme-toggle:hover{border-color:var(--amber);}
+  .project-banner{background:var(--amber-dim);border-bottom:1px solid var(--line);padding:8px 20px;
+    font-size:12.5px;color:var(--text);text-align:center;}
+  .project-banner a{color:var(--amber);font-weight:600;text-decoration:underline;cursor:pointer;}
+  .project-banner.active{background:rgba(60,151,97,0.14);}
   .result-ok{color:var(--green);font-weight:600;}
   .result-bad{color:var(--danger);font-weight:600;}
   .result-warn{color:var(--amber);font-weight:600;}
@@ -167,6 +171,7 @@
   <div class="topnav-inner">
     <div class="brand">☀ Lorenzo Soluciones Energéticas</div>
     <select id="pageSelect" class="page-select">
+      <option value="proyectos">📁 Proyectos</option>
       <option value="dimensionador">Dimensionador + Presupuesto</option>
       <option value="strings">Verificador de Strings</option>
       <option value="vdrop">Caída de Tensión</option>
@@ -179,7 +184,48 @@
   </div>
 </div>
 
-<div id="page-dimensionador" class="page active">
+<div class="project-banner" id="projectBanner">
+  <span>📁 Sin proyecto activo — los cálculos no se guardan. </span>
+  <a href="#" onclick="irAProyectos(); return false;">Elegir o crear un proyecto</a>
+</div>
+
+<div id="page-proyectos" class="page active">
+<div class="wrap">
+  <div class="hero">
+    <div>
+      <div class="hero-eyebrow">Lorenzo Soluciones Energéticas · Gestión</div>
+      <h1>Proyectos</h1>
+      <p>Elegí un proyecto para trabajar — todo lo que calcules en las demás pestañas se guarda solo ahí. Podés volver después y seguir donde quedaste.</p>
+    </div>
+  </div>
+  <div class="note" id="projectStorageNote" style="margin-bottom:16px;"></div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Nuevo proyecto</h2>
+      <label>Nombre del proyecto / cliente</label>
+      <input type="text" id="proy_nombreNuevo" placeholder="Ej: Roberto Gómez">
+      <button class="btn-primary" onclick="crearProyecto()">Crear y activar</button>
+
+      <div class="row2" style="margin-top:20px;">
+        <button class="btn-secondary" onclick="exportProyectosJSON()">⬇ Exportar todo (JSON)</button>
+        <div>
+          <input type="file" id="proy_importFile" accept=".json" style="display:none;" onchange="importProyectosJSON(this.files[0])">
+          <button class="btn-secondary" onclick="document.getElementById('proy_importFile').click()">⬆ Importar (JSON)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Proyectos guardados</h2>
+      <input type="text" id="proy_buscar" placeholder="Buscar por nombre..." oninput="renderProyectosList()">
+      <div id="proy_list" class="spec-list" style="margin-top:12px;"><div class="hint">Cargando…</div></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div id="page-dimensionador" class="page">
 <div class="wrap">
 
   <div class="hero">
@@ -668,15 +714,17 @@ function verificarString(){
   `).join('');
   document.getElementById('st_checks').innerHTML = html;
   document.getElementById('stringResultsCard').classList.add('show');
+  guardarEnProyectoActivo('strings');
 }
 
 // ---------- CAÍDA DE TENSIÓN ----------
 let vdCircuitType = 'cc';
+function setVdCircuitType(type){
+  vdCircuitType = type;
+  document.querySelectorAll('#vdCircuitSeg button').forEach(x=>x.classList.toggle('active', x.dataset.val===type));
+}
 document.querySelectorAll('#vdCircuitSeg button').forEach(b=>{
-  b.addEventListener('click', ()=>{
-    document.querySelectorAll('#vdCircuitSeg button').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active'); vdCircuitType = b.dataset.val;
-  });
+  b.addEventListener('click', ()=> setVdCircuitType(b.dataset.val));
 });
 document.getElementById('vd_seccion').addEventListener('change', calcularVdrop);
 
@@ -727,6 +775,7 @@ function calcularVdrop(){
     rec.style.display = 'none';
   }
   document.getElementById('vdropResultsCard').classList.add('show');
+  guardarEnProyectoActivo('vdrop');
 }
 </script>
 
@@ -957,30 +1006,33 @@ document.getElementById('logoFile').addEventListener('change', function(e){
   reader.readAsDataURL(file);
 });
 
+function setLocMode(mode){
+  locMode = mode;
+  document.querySelectorAll('#locModeGroup .opt').forEach(o=>o.classList.toggle('sel', o.dataset.mode===mode));
+  document.getElementById('sub-lista').style.display = mode==='lista' ? 'block':'none';
+  document.getElementById('sub-csv').style.display = mode==='csv' ? 'block':'none';
+  document.getElementById('sub-manual').style.display = mode==='manual' ? 'block':'none';
+}
 document.querySelectorAll('#locModeGroup .opt').forEach(el=>{
-  el.addEventListener('click', ()=>{
-    document.querySelectorAll('#locModeGroup .opt').forEach(o=>o.classList.remove('sel'));
-    el.classList.add('sel');
-    locMode = el.dataset.mode;
-    document.getElementById('sub-lista').style.display = locMode==='lista' ? 'block':'none';
-    document.getElementById('sub-csv').style.display = locMode==='csv' ? 'block':'none';
-    document.getElementById('sub-manual').style.display = locMode==='manual' ? 'block':'none';
-  });
+  el.addEventListener('click', ()=> setLocMode(el.dataset.mode));
 });
 
+function setGridMode(mode){
+  gridMode = mode;
+  document.querySelectorAll('#gridSeg button').forEach(x=>x.classList.toggle('active', x.dataset.val===mode));
+  document.getElementById('offgridExtra').style.display = mode==='offgrid' ? 'block':'none';
+}
 document.querySelectorAll('#gridSeg button').forEach(b=>{
-  b.addEventListener('click', ()=>{
-    document.querySelectorAll('#gridSeg button').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active'); gridMode = b.dataset.val;
-    document.getElementById('offgridExtra').style.display = gridMode==='offgrid' ? 'block':'none';
-  });
+  b.addEventListener('click', ()=> setGridMode(b.dataset.val));
 });
+
+function setMountMode(mode){
+  mountMode = mode;
+  document.querySelectorAll('#mountSeg button').forEach(x=>x.classList.toggle('active', x.dataset.val===mode));
+  document.getElementById('anguloExtra').style.display = mode==='angulo' ? 'block':'none';
+}
 document.querySelectorAll('#mountSeg button').forEach(b=>{
-  b.addEventListener('click', ()=>{
-    document.querySelectorAll('#mountSeg button').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active'); mountMode = b.dataset.val;
-    document.getElementById('anguloExtra').style.display = mountMode==='angulo' ? 'block':'none';
-  });
+  b.addEventListener('click', ()=> setMountMode(b.dataset.val));
 });
 
 document.getElementById('pct').addEventListener('input', e=>{
@@ -1165,6 +1217,7 @@ function calcular(){
   document.getElementById('gaugeNum').textContent = hsp.toFixed(1);
 
   buildBudget();
+  guardarEnProyectoActivo('dimensionador');
 }
 
 function renderPanelLayout(numPanels, mpptGroups, mountMode){
@@ -1840,6 +1893,7 @@ function calcularAhorro(){
   document.getElementById('ah_ahorroNeto').textContent = `US$ ${acumuladoUsd.toLocaleString('en-US',{maximumFractionDigits:0})}`;
   document.getElementById('ah_costoLocal').textContent = `US$ ${costoUsd.toLocaleString('en-US',{maximumFractionDigits:0})} (≈ $${(costoUsd*tipoCambio).toLocaleString('es-AR',{maximumFractionDigits:0})} hoy)`;
   document.getElementById('ahorroResultsCard').classList.add('show');
+  guardarEnProyectoActivo('ahorro');
 
   const ctx = document.getElementById('ah_chart').getContext('2d');
   if(ahChart) ahChart.destroy();
@@ -1892,6 +1946,7 @@ function buildScenario(pct){
 function generarPropuestaPDF(){
   if(!lastCalc){ alert('Primero calculá el sistema en Dimensionador + Presupuesto.'); return; }
   if(!lastSavings){ alert('Primero calculá el ahorro en la pestaña Calculadora de Ahorro.'); return; }
+  guardarEnProyectoActivo('propuesta');
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -1958,473 +2013,4 @@ function generarPropuestaPDF(){
     ['Costo del sistema', `US$ ${s.costoUsd.toLocaleString('es-AR')}`],
     ['Ahorro estimado año 1', `US$ ${s.ahorroAno1Usd.toFixed(0)}`],
     ['Ahorro neto acumulado (a '+s.horizonte+' años)', `US$ ${s.acumuladoUsd.toLocaleString('en-US',{maximumFractionDigits:0})}`],
-    ['Recupero de la inversión (payback)', s.paybackYear ? `${s.paybackYear.toFixed(1)} años` : 'No recupera en el horizonte'],
-    ['Horizonte analizado', `${s.horizonte} años`],
-  ];
-  doc.autoTable({ startY:y+2, body:savRows, theme:'plain',
-    styles:{fontSize:9.5, cellPadding:2}, columnStyles:{0:{cellWidth:80,fontStyle:'bold'},1:{cellWidth:102}},
-    margin:{left:14,right:14} });
-  y = doc.lastAutoTable.finalY + 6;
-
-  if(ahChart){
-    const chartImg = document.getElementById('ah_chart').toDataURL('image/png', 1.0);
-    doc.addImage(chartImg, 'PNG', 14, y, 182, 80);
-    y += 86;
-  }
-
-  if(document.getElementById('pr_comparar').checked){
-    if(y > 230){ doc.addPage(); y = 20; }
-    const pctAlt = parseFloat(document.getElementById('pr_pctAlt').value) || 100;
-    const alt = buildScenario(pctAlt);
-    doc.setFontSize(13); doc.setTextColor(18,42,28);
-    doc.text('Escenario comparativo', 14, y); y+=4;
-    const compRows = [
-      ['Escenario', `${lastCalc.pct}% autoconsumo`, `${pctAlt}% autoconsumo`],
-      ['Potencia', `${lastCalc.actualKwp.toFixed(2)} kWp`, `${alt.kwp.toFixed(2)} kWp`],
-      ['Costo estimado', `US$ ${s.costoUsd.toLocaleString('es-AR')}`, `US$ ${alt.costoUsd.toLocaleString('es-AR',{maximumFractionDigits:0})}`],
-      ['Ahorro año 1', `US$ ${s.ahorroAno1Usd.toFixed(0)}`, `US$ ${alt.ahorroAno1Usd.toFixed(0)}`],
-      ['Payback', s.paybackYear?`${s.paybackYear.toFixed(1)} años`:'-', alt.paybackYear?`${alt.paybackYear.toFixed(1)} años`:'-'],
-    ];
-    doc.autoTable({ startY:y+2, head:[['','Escenario actual','Escenario alternativo']], body: compRows,
-      theme:'striped', styles:{fontSize:9}, headStyles:{fillColor:[23,54,34], textColor:255},
-      margin:{left:14,right:14} });
-    y = doc.lastAutoTable.finalY + 10;
-  }
-
-  if(y > 240){ doc.addPage(); y = 20; }
-  const co2 = calcularCO2();
-  if(co2){
-    doc.setFontSize(13); doc.setTextColor(18,42,28);
-    doc.text('Dashboard ambiental — CO2 evitado', 14, y); y+=4;
-    const co2Rows = [
-      ['CO2 evitado año 1', `${(co2.co2Ano1Kg/1000).toFixed(2)} t CO2/año`],
-      [`CO2 evitado acumulado (${co2.horizonte} años)`, `${(co2.co2AcumKg/1000).toFixed(1)} t CO2`],
-      ['Equivalente en árboles (absorción anual)', `${Math.round(co2.arbolesPorAno)} árboles/año`],
-      ['Equivalente en km no recorridos en auto', `${Math.round(co2.kmEquivalentes).toLocaleString('es-AR')} km/año`],
-    ];
-    doc.autoTable({ startY:y+2, body:co2Rows, theme:'plain',
-      styles:{fontSize:9.5, cellPadding:2}, columnStyles:{0:{cellWidth:90,fontStyle:'bold'},1:{cellWidth:92}},
-      margin:{left:14,right:14} });
-    y = doc.lastAutoTable.finalY + 6;
-
-    if(co2Chart){
-      if(y > 210){ doc.addPage(); y = 20; }
-      const co2ChartImg = document.getElementById('co2_chart').toDataURL('image/png', 1.0);
-      doc.addImage(co2ChartImg, 'PNG', 14, y, 182, 78);
-      y += 84;
-    }
-
-    doc.setFontSize(7.5); doc.setTextColor(120,120,120);
-    doc.text('Factor de emisión: 0,486 kg CO2/kWh (red eléctrica argentina). Valor orientativo, no un cálculo certificado.', 14, y);
-    y += 10;
-  }
-
-  if(y > 240){ doc.addPage(); y = 20; }
-  doc.setDrawColor(200,200,200);
-  doc.line(14, y+20, 90, y+20);
-  doc.setFontSize(9); doc.setTextColor(80,80,80);
-  doc.text('Firma de aceptación', 14, y+25);
-  doc.text(`Propuesta válida por 15 días desde ${fecha}.`, 14, y+35);
-
-  doc.save(`Propuesta_${cliente.replace(/\s+/g,'_')}.pdf`);
-}
-</script>
-
-<div id="page-stock" class="page">
-<div class="wrap">
-  <div class="hero">
-    <div>
-      <div class="hero-eyebrow">Lorenzo Soluciones Energéticas · Gestión</div>
-      <h1>Dashboard de Stock</h1>
-      <p>Cargá los catálogos de tus distribuidores y compará precio y disponibilidad del mismo tipo de componente entre todos.</p>
-    </div>
-  </div>
-  <div class="note" id="stockStorageNote" style="margin-bottom:16px;"></div>
-
-  <div class="grid">
-    <div class="card">
-      <h2>Cargar catálogo de distribuidor</h2>
-      <label>Nombre del distribuidor</label>
-      <input type="text" id="stk_distribuidor" placeholder="Ej: Multiradio Solar">
-      <label>Archivo (CSV o Excel)</label>
-      <input type="file" id="stk_file" accept=".csv,.xlsx,.xls">
-      <button class="btn-primary" onclick="handleStockUpload()">Cargar y guardar</button>
-      <div class="hint mono" id="stk_uploadStatus"></div>
-
-      <h2 style="margin-top:22px;">Catálogos cargados</h2>
-      <div id="stk_catalogList" class="spec-list"><div class="hint">Ninguno todavía.</div></div>
-
-      <div class="row2" style="margin-top:16px;">
-        <button class="btn-secondary" onclick="exportStockJSON()">⬇ Exportar todo (JSON)</button>
-        <div>
-          <input type="file" id="stk_importFile" accept=".json" style="display:none;" onchange="importStockJSON(this.files[0])">
-          <button class="btn-secondary" onclick="document.getElementById('stk_importFile').click()">⬆ Importar (JSON)</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Comparar componentes</h2>
-      <label>Buscar (nombre, marca, modelo)</label>
-      <input type="text" id="stk_search" placeholder="Ej: inversor 6kW, panel 550, deye">
-      <label>Categoría</label>
-      <select id="stk_categoria"><option value="">Todas</option></select>
-      <button class="btn-primary" onclick="buscarStock()">Buscar</button>
-      <div style="overflow-x:auto;">
-        <table class="budget" id="stk_resultsTable" style="margin-top:14px;">
-          <thead><tr><th>Producto</th><th>Distribuidor</th><th>Precio</th><th>Stock</th></tr></thead>
-          <tbody id="stk_resultsBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
-</div>
-
-<div id="page-clientes" class="page">
-<div class="wrap">
-  <div class="hero">
-    <div>
-      <div class="hero-eyebrow">Lorenzo Soluciones Energéticas · Gestión</div>
-      <h1>Base de Clientes e Instalaciones</h1>
-      <p>Historial de cada cliente y sistema instalado, para tener todo a mano cuando te contactan.</p>
-    </div>
-  </div>
-  <div class="note" id="clientStorageNote" style="margin-bottom:16px;"></div>
-
-  <div class="grid">
-    <div class="card">
-      <h2>Nuevo cliente / proyecto</h2>
-      <button class="btn-secondary" style="margin-top:0;" onclick="pullClientFromDimensionador()">↺ Completar desde Dimensionador/Propuesta</button>
-      <input type="hidden" id="cl_id">
-      <label>Nombre del cliente</label>
-      <input type="text" id="cl_nombre" placeholder="Ej: Roberto Gómez">
-      <label>Ubicación</label>
-      <input type="text" id="cl_ubicacion" placeholder="Ej: Rivadavia, San Juan">
-      <label>Contacto</label>
-      <input type="text" id="cl_contacto" placeholder="Teléfono / email">
-      <div class="row2">
-        <div>
-          <label>Estado</label>
-          <select id="cl_estado">
-            <option>Consulta</option>
-            <option>Presupuestado</option>
-            <option>Aprobado</option>
-            <option>Instalado</option>
-          </select>
-        </div>
-        <div>
-          <label>Fecha</label>
-          <input type="date" id="cl_fecha">
-        </div>
-      </div>
-      <label>Resumen del sistema</label>
-      <input type="text" id="cl_sistema" placeholder="Ej: 6.05 kWp, 11 paneles 550Wp, Deye 6kW">
-      <label>Costo (USD)</label>
-      <input type="number" id="cl_costo" step="any">
-      <label>Notas</label>
-      <input type="text" id="cl_notas" placeholder="Garantías, detalles de mantenimiento, etc.">
-
-      <button class="btn-primary" onclick="saveClient()">Guardar cliente</button>
-
-      <div class="row2" style="margin-top:16px;">
-        <button class="btn-secondary" onclick="exportClientsJSON()">⬇ Exportar todo (JSON)</button>
-        <div>
-          <input type="file" id="cl_importFile" accept=".json" style="display:none;" onchange="importClientsJSON(this.files[0])">
-          <button class="btn-secondary" onclick="document.getElementById('cl_importFile').click()">⬆ Importar (JSON)</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Clientes guardados</h2>
-      <input type="text" id="cl_buscar" placeholder="Buscar por nombre..." oninput="renderClientList()">
-      <div id="cl_list" class="spec-list" style="margin-top:12px;"><div class="hint">Cargando…</div></div>
-    </div>
-  </div>
-</div>
-</div>
-
-<script>
-// ---------------- SHARED STORAGE HELPERS ----------------
-const STORAGE_AVAILABLE = typeof window.storage !== 'undefined';
-
-function showStorageNote(elId){
-  const el = document.getElementById(elId);
-  if(!el) return;
-  el.textContent = STORAGE_AVAILABLE
-    ? 'Los datos se guardan automáticamente en este entorno de Claude. Igual te recomendamos exportar un backup en JSON de vez en cuando.'
-    : 'El guardado automático solo funciona dentro de Claude.ai. Si abrís este archivo local o en otro sitio, usá "Exportar (JSON)" para hacer un backup y "Importar (JSON)" para recuperarlo la próxima vez.';
-  el.style.color = STORAGE_AVAILABLE ? 'var(--green)' : 'var(--amber)';
-}
-showStorageNote('stockStorageNote');
-showStorageNote('clientStorageNote');
-
-let stockCatalogs = []; // {distributor, items, uploadedAt}
-let clientsCache = [];  // {id, nombre, ubicacion, contacto, estado, fecha, sistema, costo, notas}
-
-// ---------------- STOCK DASHBOARD ----------------
-async function loadStockCatalogsFromStorage(){
-  if(!STORAGE_AVAILABLE) return;
-  try{
-    const list = await window.storage.list('stock-catalog:', false);
-    if(!list || !list.keys) return;
-    for(const key of list.keys){
-      try{
-        const res = await window.storage.get(key, false);
-        if(res && res.value) stockCatalogs.push(JSON.parse(res.value));
-      }catch(e){ /* skip missing */ }
-    }
-    renderStockCatalogList();
-    populateStockCategoryFilter();
-  }catch(e){ console.error('Error cargando catálogos guardados', e); }
-}
-
-function handleStockUpload(){
-  const file = document.getElementById('stk_file').files[0];
-  const distributor = document.getElementById('stk_distribuidor').value.trim();
-  if(!file || !distributor){ alert('Ingresá el nombre del distribuidor y elegí un archivo.'); return; }
-  const reader = new FileReader();
-  reader.onload = async function(ev){
-    try{
-      const data = new Uint8Array(ev.target.result);
-      const wb = XLSX.read(data, {type:'array'});
-      let items = [];
-      wb.SheetNames.forEach(name=>{
-        const aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, defval:''});
-        items = items.concat(parseSheetRows(aoa));
-      });
-      if(items.length === 0) throw new Error('No se detectaron ítems reconocibles en el archivo');
-
-      const entry = {distributor, items, uploadedAt: new Date().toISOString()};
-      stockCatalogs = stockCatalogs.filter(c=>c.distributor !== distributor);
-      stockCatalogs.push(entry);
-
-      if(STORAGE_AVAILABLE){
-        try{
-          await window.storage.set('stock-catalog:'+distributor.toLowerCase().replace(/\s+/g,'_'), JSON.stringify(entry), false);
-        }catch(e){ console.error('No se pudo guardar en storage', e); }
-      }
-
-      document.getElementById('stk_uploadStatus').textContent = `✓ ${items.length} ítems cargados para ${distributor}`;
-      document.getElementById('stk_uploadStatus').style.color = 'var(--green)';
-      renderStockCatalogList();
-      populateStockCategoryFilter();
-    }catch(err){
-      document.getElementById('stk_uploadStatus').textContent = '⚠ '+err.message;
-      document.getElementById('stk_uploadStatus').style.color = 'var(--danger)';
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-async function deleteStockCatalog(distributor){
-  stockCatalogs = stockCatalogs.filter(c=>c.distributor !== distributor);
-  if(STORAGE_AVAILABLE){
-    try{ await window.storage.delete('stock-catalog:'+distributor.toLowerCase().replace(/\s+/g,'_'), false); }catch(e){}
-  }
-  renderStockCatalogList();
-  populateStockCategoryFilter();
-}
-
-function renderStockCatalogList(){
-  const el = document.getElementById('stk_catalogList');
-  if(stockCatalogs.length === 0){ el.innerHTML = '<div class="hint">Ninguno todavía.</div>'; return; }
-  el.innerHTML = stockCatalogs.map(c=>`
-    <div class="spec-row"><span class="lbl">${c.distributor} <span style="color:var(--text-dim);">(${c.items.length} ítems)</span></span>
-    <span class="val"><a href="#" onclick="deleteStockCatalog('${c.distributor.replace(/'/g,"\\'")}'); return false;" style="color:var(--danger);">Eliminar</a></span></div>
-  `).join('');
-}
-
-function populateStockCategoryFilter(){
-  const sel = document.getElementById('stk_categoria');
-  const cats = new Set();
-  stockCatalogs.forEach(c=>c.items.forEach(i=>cats.add(i.categoria)));
-  sel.innerHTML = '<option value="">Todas</option>' + [...cats].sort().map(c=>`<option value="${c}">${c}</option>`).join('');
-}
-
-function buscarStock(){
-  const q = normStr(document.getElementById('stk_search').value);
-  const cat = document.getElementById('stk_categoria').value;
-  let results = [];
-  stockCatalogs.forEach(c=>{
-    c.items.forEach(it=>{
-      if(cat && it.categoria !== cat) return;
-      if(q && !normStr(it.categoria+' '+it.descripcion).includes(q)) return;
-      results.push({...it, distributor: c.distributor});
-    });
-  });
-  results.sort((a,b)=>a.precio-b.precio);
-  const body = document.getElementById('stk_resultsBody');
-  if(results.length === 0){ body.innerHTML = '<tr><td colspan="4" class="hint">Sin resultados.</td></tr>'; return; }
-  body.innerHTML = results.slice(0,60).map((r,idx)=>`
-    <tr ${idx===0?'style="background:rgba(91,185,140,0.12);"':''}>
-      <td>${shortenDesc(r.descripcion, 55)}</td>
-      <td>${r.distributor}</td>
-      <td class="num">US$ ${r.precio.toFixed(2)}</td>
-      <td>${r.disponibilidad||'-'}</td>
-    </tr>
-  `).join('');
-}
-
-function exportStockJSON(){
-  const blob = new Blob([JSON.stringify(stockCatalogs, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'stock_catalogos_backup.json';
-  a.click();
-}
-
-function importStockJSON(file){
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = async function(ev){
-    try{
-      const imported = JSON.parse(ev.target.result);
-      if(!Array.isArray(imported)) throw new Error('Formato inválido');
-      stockCatalogs = imported;
-      if(STORAGE_AVAILABLE){
-        for(const c of stockCatalogs){
-          try{ await window.storage.set('stock-catalog:'+c.distributor.toLowerCase().replace(/\s+/g,'_'), JSON.stringify(c), false); }catch(e){}
-        }
-      }
-      renderStockCatalogList();
-      populateStockCategoryFilter();
-      alert('Catálogos importados correctamente.');
-    }catch(err){ alert('No se pudo importar: '+err.message); }
-  };
-  reader.readAsText(file);
-}
-
-loadStockCatalogsFromStorage();
-
-// ---------------- CLIENT DATABASE ----------------
-async function loadClientsFromStorage(){
-  if(!STORAGE_AVAILABLE){ renderClientList(); return; }
-  try{
-    const list = await window.storage.list('client:', false);
-    clientsCache = [];
-    if(list && list.keys){
-      for(const key of list.keys){
-        try{
-          const res = await window.storage.get(key, false);
-          if(res && res.value) clientsCache.push(JSON.parse(res.value));
-        }catch(e){}
-      }
-    }
-    renderClientList();
-  }catch(e){ console.error('Error cargando clientes', e); renderClientList(); }
-}
-
-function pullClientFromDimensionador(){
-  if(!lastCalc){ alert('Primero calculá un sistema en Dimensionador + Presupuesto.'); return; }
-  const nombreDoc = document.getElementById('clienteNombre');
-  if(nombreDoc && nombreDoc.value) document.getElementById('cl_nombre').value = nombreDoc.value;
-  const ubic = getDimensionadorLocation();
-  if(ubic) document.getElementById('cl_ubicacion').value = ubic;
-  document.getElementById('cl_sistema').value = `${lastCalc.actualKwp.toFixed(2)} kWp, ${lastCalc.numPanels} paneles ${lastCalc.panelWp}Wp, inversor ${lastCalc.invSize}kW ${lastCalc.trifasico?'trifásico':'monofásico'}`;
-  if(lastCalc.budgetTotals) document.getElementById('cl_costo').value = lastCalc.budgetTotals.subtotal.toFixed(2);
-  document.getElementById('cl_estado').value = 'Presupuestado';
-}
-
-async function saveClient(){
-  const nombre = document.getElementById('cl_nombre').value.trim();
-  if(!nombre){ alert('Ingresá al menos el nombre del cliente.'); return; }
-  const id = document.getElementById('cl_id').value || ('c'+Date.now());
-  const record = {
-    id, nombre,
-    ubicacion: document.getElementById('cl_ubicacion').value,
-    contacto: document.getElementById('cl_contacto').value,
-    estado: document.getElementById('cl_estado').value,
-    fecha: document.getElementById('cl_fecha').value,
-    sistema: document.getElementById('cl_sistema').value,
-    costo: document.getElementById('cl_costo').value,
-    notas: document.getElementById('cl_notas').value,
-    updatedAt: new Date().toISOString()
-  };
-  clientsCache = clientsCache.filter(c=>c.id !== id);
-  clientsCache.push(record);
-  if(STORAGE_AVAILABLE){
-    try{ await window.storage.set('client:'+id, JSON.stringify(record), false); }
-    catch(e){ alert('No se pudo guardar en el almacenamiento persistente, pero quedó guardado en esta sesión. Exportá un backup en JSON.'); }
-  }
-  renderClientList();
-  ['cl_id','cl_nombre','cl_ubicacion','cl_contacto','cl_sistema','cl_costo','cl_notas'].forEach(i=>document.getElementById(i).value='');
-  document.getElementById('cl_estado').value = 'Consulta';
-}
-
-async function deleteClientById(id){
-  clientsCache = clientsCache.filter(c=>c.id !== id);
-  if(STORAGE_AVAILABLE){ try{ await window.storage.delete('client:'+id, false); }catch(e){} }
-  renderClientList();
-}
-
-function editClient(id){
-  const c = clientsCache.find(x=>x.id===id);
-  if(!c) return;
-  document.getElementById('cl_id').value = c.id;
-  document.getElementById('cl_nombre').value = c.nombre||'';
-  document.getElementById('cl_ubicacion').value = c.ubicacion||'';
-  document.getElementById('cl_contacto').value = c.contacto||'';
-  document.getElementById('cl_estado').value = c.estado||'Consulta';
-  document.getElementById('cl_fecha').value = c.fecha||'';
-  document.getElementById('cl_sistema').value = c.sistema||'';
-  document.getElementById('cl_costo').value = c.costo||'';
-  document.getElementById('cl_notas').value = c.notas||'';
-  window.scrollTo(0,0);
-}
-
-function renderClientList(){
-  const el = document.getElementById('cl_list');
-  const q = normStr(document.getElementById('cl_buscar').value);
-  let list = clientsCache.slice().sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
-  if(q) list = list.filter(c=>normStr(c.nombre).includes(q));
-  if(list.length === 0){ el.innerHTML = '<div class="hint">Sin clientes guardados.</div>'; return; }
-  el.innerHTML = list.map(c=>`
-    <div class="spec-row" style="flex-direction:column;align-items:flex-start;gap:4px;">
-      <div style="display:flex;justify-content:space-between;width:100%;">
-        <strong>${c.nombre}</strong>
-        <span style="color:var(--amber);font-size:11.5px;">${c.estado||''}</span>
-      </div>
-      <div style="font-size:12px;color:var(--text-dim);">${c.ubicacion||''} ${c.contacto?'· '+c.contacto:''}</div>
-      <div style="font-size:12px;color:var(--text-dim);">${c.sistema||''} ${c.costo?'· US$ '+c.costo:''}</div>
-      <div style="display:flex;gap:12px;margin-top:4px;">
-        <a href="#" onclick="editClient('${c.id}'); return false;" style="color:var(--sky);font-size:11.5px;">Editar</a>
-        <a href="#" onclick="deleteClientById('${c.id}'); return false;" style="color:var(--danger);font-size:11.5px;">Eliminar</a>
-      </div>
-    </div>
-  `).join('');
-}
-
-function exportClientsJSON(){
-  const blob = new Blob([JSON.stringify(clientsCache, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'clientes_backup.json';
-  a.click();
-}
-
-function importClientsJSON(file){
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = async function(ev){
-    try{
-      const imported = JSON.parse(ev.target.result);
-      if(!Array.isArray(imported)) throw new Error('Formato inválido');
-      clientsCache = imported;
-      if(STORAGE_AVAILABLE){
-        for(const c of clientsCache){
-          try{ await window.storage.set('client:'+c.id, JSON.stringify(c), false); }catch(e){}
-        }
-      }
-      renderClientList();
-      alert('Clientes importados correctamente.');
-    }catch(err){ alert('No se pudo importar: '+err.message); }
-  };
-  reader.readAsText(file);
-}
-
-loadClientsFromStorage();
-</script>
-</body>
-</html>
+    ['Recupero de la inversión (payback)', s.paybackYear ? `${s.paybackYear.toFixed(1)
