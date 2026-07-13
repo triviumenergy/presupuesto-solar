@@ -277,6 +277,10 @@
       <select id="marcaBateria"><option value="">Cualquiera</option></select>
       <div class="hint">Estos selectores se completan solos al cargar el catálogo de arriba.</div>
 
+      <label>Densidad de potencia del panel (W/m²) — ajustá si conocés las medidas reales del datasheet</label>
+      <input type="number" id="panelDensidad" value="205" step="any">
+      <div class="hint">Se autocompleta con un valor típico según la potencia, pero cambia bastante entre modelos (un panel más potente no siempre necesita menos área — a veces es simplemente más grande físicamente). Si tenés las medidas reales (ancho × alto), dividí Wp ÷ (ancho×alto en m) y poné ese número acá para mayor precisión.</div>
+
       <label>Área disponible (m²) — dejalo vacío si no la sabés</label>
       <input type="number" id="areaDisponible" step="any" placeholder="Ej: 25 (opcional)">
 
@@ -1019,12 +1023,29 @@ function getHsp(){
 let lastCalc = null;
 let lastBudgetItems = [];
 
+function typicalPanelDensity(wp){
+  // W/m² aproximado según el formato físico típico de panel para ese rango de potencia.
+  // Ojo: no es estrictamente creciente — paneles de mayor potencia a veces son solo más grandes,
+  // no necesariamente más densos (ej. formato Vertex 625W es más grande, no más eficiente por m²).
+  if(wp <= 420) return 205;
+  if(wp <= 480) return 208;
+  if(wp <= 560) return 213;
+  if(wp <= 610) return 225;
+  if(wp <= 660) return 201;
+  return 205;
+}
+document.getElementById('panelWp').addEventListener('input', e=>{
+  const wp = parseFloat(e.target.value);
+  if(wp>0) document.getElementById('panelDensidad').value = typicalPanelDensity(wp);
+});
+
 function calcular(){
   const consumo = parseFloat(document.getElementById('consumo').value);
   const periodo = document.getElementById('periodo').value;
   const hsp = getHsp();
   const pct = parseFloat(document.getElementById('pct').value);
   const panelWp = parseFloat(document.getElementById('panelWp').value) || 550;
+  const panelDensidad = parseFloat(document.getElementById('panelDensidad').value) || typicalPanelDensity(panelWp);
 
   if(!consumo || consumo<=0){ alert('Ingresá un consumo válido en kWh.'); return; }
   if(!hsp || hsp<=0){ alert('Falta el valor de HSP: elegí una localidad, subí el CSV, o ingresá el valor manual.'); return; }
@@ -1040,9 +1061,9 @@ function calcular(){
   const actualKwp = numPanels*panelWp/1000;
 
   // Área: si no se conoce el área disponible, se recomienda según la potencia del panel.
-  // areaPerPanel aproxima el tamaño físico típico de un panel a partir de su potencia
-  // (asumiendo ~20.5% de eficiencia de módulo: Área = Wp / (1000 W/m² × 0.205)).
-  const areaPerPanel = panelWp / 205;
+  // La densidad (W/m²) es editable porque paneles más potentes no siempre son más eficientes
+  // por m² — a veces son directamente más grandes físicamente (ej. formato Vertex 625W).
+  const areaPerPanel = panelWp / panelDensidad;
   const spacingFactor = mountMode==='coplanar' ? 1.15 : 1.6; // en ángulo necesita espacio entre filas para no autosombrearse
   const areaRequerida = numPanels * areaPerPanel * spacingFactor;
   const areaDisponibleInput = parseFloat(document.getElementById('areaDisponible').value);
