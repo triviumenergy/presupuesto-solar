@@ -343,6 +343,14 @@
     </div>
   </div>
 
+  <!-- LAYOUT SKETCH -->
+  <div class="card results" id="layoutCard" style="margin-top:20px;">
+    <h2>Croquis de distribución de paneles (referencial)</h2>
+    <div class="hint" id="layoutCaption">–</div>
+    <div id="panelLayoutSvg" style="margin-top:12px;max-width:640px;"></div>
+    <div class="hint" style="margin-top:10px;">Es una referencia de cantidad y agrupación aproximada por string — la disposición real depende de la geometría del techo/estructura, orientación y sombras del sitio. Cada color agrupa paneles de un mismo string/MPPT aproximado.</div>
+  </div>
+
   <!-- BUDGET -->
   <div class="card budget-card results" id="budgetCard">
     <div class="toprow">
@@ -1140,7 +1148,10 @@ function calcular(){
   }
 
   document.getElementById('resultsCard').classList.add('show');
+  document.getElementById('layoutCard').classList.add('show');
   document.getElementById('budgetCard').classList.add('show');
+
+  renderPanelLayout(numPanels, mppt, mountMode);
 
   // gauge
   const gaugeMax = 7, circumference = 238.76;
@@ -1149,6 +1160,39 @@ function calcular(){
   document.getElementById('gaugeNum').textContent = hsp.toFixed(1);
 
   buildBudget();
+}
+
+function renderPanelLayout(numPanels, mpptGroups, mountMode){
+  const container = document.getElementById('panelLayoutSvg');
+  const caption = document.getElementById('layoutCaption');
+  if(numPanels <= 0){ container.innerHTML=''; return; }
+
+  // Paneles en orientación horizontal (formato típico de fila en techo/estructura),
+  // agrupados en 'mpptGroups' bloques aproximando los strings/MPPT del inversor.
+  const cols = Math.max(1, Math.round(Math.sqrt(numPanels*1.8)));
+  const rows = Math.ceil(numPanels/cols);
+  const panelW = 34, panelH = 18, gap = 3;
+  const svgW = cols*(panelW+gap)+gap;
+  const svgH = rows*(panelH+gap)+gap;
+  const colors = ['#F2A93B','#3C9761','#5FA8D3','#E2694B','#B98CE0','#4FBDBD','#D4A24C','#8CC63F'];
+  const groups = Math.max(1, mpptGroups||1);
+  const groupSize = Math.ceil(numPanels/groups);
+
+  let svg = `<svg viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;max-width:520px;background:var(--panel-2);border-radius:8px;">`;
+  let idx=0;
+  for(let r=0; r<rows; r++){
+    for(let c=0; c<cols; c++){
+      if(idx>=numPanels) break;
+      const x = gap + c*(panelW+gap);
+      const y = gap + r*(panelH+gap);
+      const groupIdx = Math.floor(idx/groupSize) % colors.length;
+      svg += `<rect x="${x}" y="${y}" width="${panelW}" height="${panelH}" rx="2" fill="${colors[groupIdx]}" opacity="0.9" stroke="rgba(0,0,0,0.3)" stroke-width="0.6"/>`;
+      idx++;
+    }
+  }
+  svg += `</svg>`;
+  container.innerHTML = svg;
+  caption.textContent = `${numPanels} paneles en ${rows} fila(s) × hasta ${cols} columna(s), agrupados en ~${groups} string(s)/MPPT (${groupSize} paneles c/u aprox.) — montaje ${mountMode==='coplanar'?'coplanar':'en ángulo'}.`;
 }
 
 function buildBudget(){
@@ -1512,9 +1556,22 @@ function generarPDF(){
 
     <div class="card">
       <h2>Vista previa de contenido</h2>
-      <div class="hint">La propuesta incluye: portada con datos del cliente, beneficios de pasarse a energía solar, resumen técnico del sistema (paneles, inversor, protecciones), presupuesto total, ahorro proyectado con gráfico, y espacio de aceptación/firma.</div>
+      <div class="hint">La propuesta incluye: portada con datos del cliente, beneficios de pasarse a energía solar, resumen técnico del sistema (paneles, inversor, protecciones), presupuesto total, ahorro proyectado con gráfico, dashboard de CO₂ evitado, y espacio de aceptación/firma.</div>
       <div class="note" style="margin-top:14px;">Para que la propuesta tenga los datos técnicos y el presupuesto, primero calculá en la pestaña <strong>Dimensionador + Presupuesto</strong>. Para el ahorro, calculá también en <strong>Calculadora de Ahorro</strong> (o usá el botón de arriba para traer todo automáticamente).</div>
     </div>
+  </div>
+
+  <div class="card results" id="co2Card" style="margin-top:20px;">
+    <h2>🌱 Dashboard ambiental — CO₂ evitado</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="k">CO₂ evitado año 1</div><div class="v" id="co2Ano1">–</div></div>
+      <div class="stat"><div class="k">CO₂ evitado acumulado (horizonte)</div><div class="v" id="co2Acum">–</div></div>
+    </div>
+    <div class="spec-list">
+      <div class="spec-row"><span class="lbl">Equivalente en árboles (absorción anual)</span><span class="val" id="co2Arboles">–</span></div>
+      <div class="spec-row"><span class="lbl">Equivalente en km no recorridos en auto</span><span class="val" id="co2Km">–</span></div>
+    </div>
+    <div class="hint" style="margin-top:10px;">Factor de emisión de la red eléctrica argentina: 0,486 kg CO₂/kWh (referencia de factor de emisión eléctrico usado en calculadoras de huella de carbono locales). Equivalencias: ~21 kg CO₂ absorbidos por árbol/año; ~150 g CO₂/km de auto a nafta. Valores orientativos para uso comercial, no un cálculo certificado.</div>
   </div>
 </div>
 </div>
@@ -1666,7 +1723,40 @@ function pullFromDimensionador(target){
     if(ubic) document.getElementById('pr_ubicacion').value = ubic;
     if(lastSavings){ /* already calculated, keep */ }
     else if(document.getElementById('ah_consumo').value){ calcularAhorro(); }
+    calcularCO2();
   }
+}
+
+const CO2_FACTOR_KG_KWH = 0.486; // factor de emisión red eléctrica argentina (kg CO2/kWh)
+
+function calcularCO2(){
+  if(!lastCalc){ return null; }
+  const PR = 0.77;
+  const degrad = lastSavings ? lastSavings.degrad : 0.005;
+  const horizonte = lastSavings ? lastSavings.horizonte : 25;
+  const genAno1 = lastCalc.actualKwp * lastCalc.hsp * 365 * PR;
+  const co2Ano1Kg = genAno1 * CO2_FACTOR_KG_KWH;
+
+  let co2AcumKg = 0;
+  for(let y=0; y<horizonte; y++){
+    const gen = lastCalc.actualKwp * lastCalc.hsp * 365 * PR * Math.pow(1-degrad, y);
+    co2AcumKg += gen * CO2_FACTOR_KG_KWH;
+  }
+
+  const arbolesPorAno = co2Ano1Kg / 21; // ~21 kg CO2 absorbidos por árbol/año
+  const kmEquivalentes = (co2Ano1Kg*1000) / 150; // ~150 g CO2/km auto a nafta
+
+  const result = {co2Ano1Kg, co2AcumKg, arbolesPorAno, kmEquivalentes, horizonte};
+
+  const co2Ano1El = document.getElementById('co2Ano1');
+  const co2AcumEl = document.getElementById('co2Acum');
+  if(co2Ano1El){
+    co2Ano1El.innerHTML = `${(co2Ano1Kg/1000).toFixed(2)}<span> t CO₂/año</span>`;
+    co2AcumEl.innerHTML = `${(co2AcumKg/1000).toFixed(1)}<span> t CO₂ (${horizonte} años)</span>`;
+    document.getElementById('co2Arboles').textContent = `${Math.round(arbolesPorAno)} árboles/año`;
+    document.getElementById('co2Km').textContent = `${Math.round(kmEquivalentes).toLocaleString('es-AR')} km/año`;
+  }
+  return result;
 }
 
 function calcularAhorro(){
@@ -1870,6 +1960,26 @@ function generarPropuestaPDF(){
       theme:'striped', styles:{fontSize:9}, headStyles:{fillColor:[23,54,34], textColor:255},
       margin:{left:14,right:14} });
     y = doc.lastAutoTable.finalY + 10;
+  }
+
+  if(y > 240){ doc.addPage(); y = 20; }
+  const co2 = calcularCO2();
+  if(co2){
+    doc.setFontSize(13); doc.setTextColor(18,42,28);
+    doc.text('Dashboard ambiental — CO₂ evitado', 14, y); y+=4;
+    const co2Rows = [
+      ['CO₂ evitado año 1', `${(co2.co2Ano1Kg/1000).toFixed(2)} t CO₂/año`],
+      [`CO₂ evitado acumulado (${co2.horizonte} años)`, `${(co2.co2AcumKg/1000).toFixed(1)} t CO₂`],
+      ['Equivalente en árboles (absorción anual)', `${Math.round(co2.arbolesPorAno)} árboles/año`],
+      ['Equivalente en km no recorridos en auto', `${Math.round(co2.kmEquivalentes).toLocaleString('es-AR')} km/año`],
+    ];
+    doc.autoTable({ startY:y+2, body:co2Rows, theme:'plain',
+      styles:{fontSize:9.5, cellPadding:2}, columnStyles:{0:{cellWidth:90,fontStyle:'bold'},1:{cellWidth:92}},
+      margin:{left:14,right:14} });
+    y = doc.lastAutoTable.finalY + 6;
+    doc.setFontSize(7.5); doc.setTextColor(120,120,120);
+    doc.text('Factor de emisión: 0,486 kg CO2/kWh (red eléctrica argentina). Valor orientativo, no un cálculo certificado.', 14, y);
+    y += 10;
   }
 
   if(y > 240){ doc.addPage(); y = 20; }
