@@ -15,23 +15,41 @@
 <script>window.__pdfWorkerSrcDefault = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <style>
   :root{
-    --ink:#0D1A13;
-    --panel:#122A1C;
-    --panel-2:#173622;
+    --ink:#102A1B;
+    --panel:#173A24;
+    --panel-2:#1D4A2C;
     --line: rgba(255,255,255,0.08);
     --amber:#F2A93B;
     --amber-dim: rgba(242,169,59,0.18);
-    --sky:#2E7D4F;
+    --sky:#3C9761;
     --green:#5BB98C;
     --text:#EAF0F4;
     --text-dim:#9FB2C0;
     --danger:#E2694B;
+    --btn-primary:#F2A93B;
+    --btn-primary-text:#1a1206;
+  }
+  html[data-theme="light"]{
+    --ink:#FFFFFF;
+    --panel:#F3F9F5;
+    --panel-2:#E8F4EC;
+    --line: rgba(15,40,25,0.12);
+    --amber:#2FA360;
+    --amber-dim: rgba(47,163,96,0.14);
+    --sky:#1F7A46;
+    --green:#1F9D5C;
+    --text:#15291C;
+    --text-dim:#5C6F63;
+    --danger:#C6432B;
+    --btn-primary:#2FA360;
+    --btn-primary-text:#FFFFFF;
   }
   *{box-sizing:border-box;}
   body{
     margin:0; background:var(--ink); color:var(--text);
     font-family:'Inter',sans-serif;
     -webkit-font-smoothing:antialiased;
+    transition: background .2s ease, color .2s ease;
   }
   h1,h2,h3,.disp{font-family:'Space Grotesk',sans-serif;}
   .mono{font-family:'IBM Plex Mono',monospace;}
@@ -69,7 +87,7 @@
   .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
   .seg button{flex:1;padding:9px 8px;background:var(--panel-2);color:var(--text-dim);border:none;
     cursor:pointer;font-size:13px;font-family:'Inter',sans-serif;transition:.15s;}
-  .seg button.active{background:var(--amber);color:#1a1206;font-weight:600;}
+  .seg button.active{background:var(--amber);color:var(--btn-primary-text);font-weight:600;}
   .seg button:not(:last-child){border-right:1px solid var(--line);}
 
   .radiogrp label.opt{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--text);
@@ -81,7 +99,7 @@
   input[type=range]{flex:1;accent-color:var(--amber);}
   .slider-val{font-family:'IBM Plex Mono',monospace;font-size:15px;min-width:46px;text-align:right;color:var(--amber);}
 
-  .btn-primary{width:100%;margin-top:22px;padding:13px;background:var(--amber);color:#1a1206;
+  .btn-primary{width:100%;margin-top:22px;padding:13px;background:var(--btn-primary);color:var(--btn-primary-text);
     border:none;border-radius:9px;font-weight:700;font-size:14.5px;cursor:pointer;font-family:'Space Grotesk',sans-serif;}
   .btn-primary:hover{filter:brightness(1.06);}
   .btn-secondary{width:100%;margin-top:12px;padding:12px;background:transparent;color:var(--sky);
@@ -130,6 +148,9 @@
     border:1px solid var(--line);border-radius:9px;color:var(--text);font-size:13px;font-weight:600;
     font-family:'Space Grotesk',sans-serif;cursor:pointer;}
   .page-select:focus{outline:2px solid var(--amber);outline-offset:1px;}
+  .theme-toggle{padding:9px 14px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
+    color:var(--text);font-size:12.5px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;flex-shrink:0;}
+  .theme-toggle:hover{border-color:var(--amber);}
   .result-ok{color:var(--green);font-weight:600;}
   .result-bad{color:var(--danger);font-weight:600;}
   .result-warn{color:var(--amber);font-weight:600;}
@@ -149,6 +170,7 @@
       <option value="stock">Dashboard de Stock</option>
       <option value="clientes">Base de Clientes</option>
     </select>
+    <button id="themeToggleBtn" class="theme-toggle" onclick="toggleTheme()" title="Cambiar modo claro/oscuro">🌙 Oscuro</button>
   </div>
 </div>
 
@@ -234,6 +256,23 @@
       <label>Potencia unitaria del panel (Wp)</label>
       <input type="number" id="panelWp" value="550">
 
+      <div class="row2">
+        <div>
+          <label>Marca de panel (según catálogo)</label>
+          <select id="marcaPanel"><option value="">Cualquiera</option></select>
+        </div>
+        <div>
+          <label>Marca de inversor (según catálogo)</label>
+          <select id="marcaInversor"><option value="">Cualquiera</option></select>
+        </div>
+      </div>
+      <label>Marca de batería (según catálogo, si es off-grid)</label>
+      <select id="marcaBateria"><option value="">Cualquiera</option></select>
+      <div class="hint">Estos selectores se completan solos al subir un catálogo más abajo, en la sección de presupuesto.</div>
+
+      <label>Área disponible (m²) — dejalo vacío si no la sabés</label>
+      <input type="number" id="areaDisponible" step="any" placeholder="Ej: 25 (opcional)">
+
       <label style="display:flex;align-items:center;gap:8px;margin-top:16px;">
         <input type="checkbox" id="incluirCA" style="width:auto;accent-color:var(--amber);"> Incluir protección de CA (térmica + DPS CA) además de la de CC
       </label>
@@ -281,6 +320,8 @@
         <div class="spec-row"><span class="lbl">DPS CC (protección DC)</span><span class="val" id="rDpsCc">–</span></div>
         <div class="spec-row"><span class="lbl">DPS CA (protección AC)</span><span class="val" id="rDpsCa">–</span></div>
         <div class="spec-row"><span class="lbl">HSP utilizado</span><span class="val" id="rHsp">–</span></div>
+        <div class="spec-row"><span class="lbl">Área requerida (estimada)</span><span class="val" id="rAreaReq">–</span></div>
+        <div class="spec-row" id="rowAreaDisp" style="display:none;"><span class="lbl">Área disponible</span><span class="val" id="rAreaDisp">–</span></div>
         <div class="spec-row" id="rowAutonomia" style="display:none;"><span class="lbl">Autonomía</span><span class="val" id="rAutonomia">–</span></div>
         <div class="spec-row" id="rowBattKwh" style="display:none;"><span class="lbl">Capacidad de baterías</span><span class="val" id="rBattKwh">–</span></div>
         <div class="spec-row" id="rowBattMod" style="display:none;"><span class="lbl">Módulos sugeridos</span><span class="val" id="rBattMod">–</span></div>
@@ -506,6 +547,13 @@ document.getElementById('pageSelect').addEventListener('change', e=>{
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+e.target.value).classList.add('active');
 });
+
+function toggleTheme(){
+  const html = document.documentElement;
+  const isLight = html.getAttribute('data-theme') === 'light';
+  html.setAttribute('data-theme', isLight ? 'dark' : 'light');
+  document.getElementById('themeToggleBtn').textContent = isLight ? '🌙 Oscuro' : '☀️ Claro';
+}
 
 // ---------- VERIFICADOR DE STRINGS ----------
 function typicalPanelSpecs(wp){
@@ -775,6 +823,23 @@ function parseSheetRows(aoa){
   return items;
 }
 
+function populateBrandSelectors(){
+  if(!catalogItems) return;
+  const fillSelect = (selId, categoryTest) => {
+    const sel = document.getElementById(selId);
+    const current = sel.value;
+    const brands = [...new Set(catalogItems.filter(r=>categoryTest(r.categoriaNorm) && r.fabricante).map(r=>r.fabricante.trim()))].sort();
+    sel.innerHTML = '<option value="">Cualquiera</option>' + brands.map(b=>`<option value="${b}">${b}</option>`).join('');
+    if(brands.includes(current)) sel.value = current;
+  };
+  fillSelect('marcaPanel', c => c.includes('panel'));
+  fillSelect('marcaInversor', c => c.includes('inversor'));
+  fillSelect('marcaBateria', c => c.includes('bateria'));
+}
+['marcaPanel','marcaInversor','marcaBateria'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', ()=>{ if(lastCalc) buildBudget(); });
+});
+
 document.getElementById('catalogFile').addEventListener('change', function(e){
   const file = e.target.files[0];
   if(!file) return;
@@ -794,6 +859,7 @@ document.getElementById('catalogFile').addEventListener('change', function(e){
       const cats = [...new Set(items.map(i=>i.categoria))];
       document.getElementById('catalogStatus').textContent = `✓ Catálogo cargado: ${items.length} ítems en ${cats.length} categorías (ej: ${cats.slice(0,5).join(', ')}${cats.length>5?'…':''})`;
       document.getElementById('catalogStatus').style.color = 'var(--green)';
+      populateBrandSelectors();
       if(lastCalc) buildBudget();
     }catch(err){
       catalogItems = null;
@@ -826,6 +892,13 @@ function findCatalogMatch(categoryTest, powerField, target, opts){
   if(!catalogItems) return null;
   let filtered = catalogItems.filter(r => categoryTest(r.categoriaNorm));
   if(filtered.length === 0) return null;
+
+  if(opts.marca){
+    const marcaNorm = normStr(opts.marca);
+    const byBrand = filtered.filter(r => normStr(r.fabricante) === marcaNorm);
+    if(byBrand.length) filtered = byBrand;
+    else return { ...filtered.slice().sort((a,b)=>a.precio-b.precio)[0], note: ` (no se encontró stock de ${opts.marca}, se muestra otra marca)` };
+  }
 
   if(opts.descPreferred){
     const preferred = filtered.filter(r=>opts.descPreferred.test(normStr(r.descripcion)));
@@ -966,6 +1039,15 @@ function calcular(){
   const numPanels = Math.ceil(requiredKwp*1000/panelWp);
   const actualKwp = numPanels*panelWp/1000;
 
+  // Área: si no se conoce el área disponible, se recomienda según la potencia del panel.
+  // areaPerPanel aproxima el tamaño físico típico de un panel a partir de su potencia
+  // (asumiendo ~20.5% de eficiencia de módulo: Área = Wp / (1000 W/m² × 0.205)).
+  const areaPerPanel = panelWp / 205;
+  const spacingFactor = mountMode==='coplanar' ? 1.15 : 1.6; // en ángulo necesita espacio entre filas para no autosombrearse
+  const areaRequerida = numPanels * areaPerPanel * spacingFactor;
+  const areaDisponibleInput = parseFloat(document.getElementById('areaDisponible').value);
+  const areaDisponible = (areaDisponibleInput && areaDisponibleInput>0) ? areaDisponibleInput : null;
+
   // Inverter sizing
   let invTarget = actualKwp/1.15;
   if(gridMode==='offgrid'){
@@ -1000,7 +1082,7 @@ function calcular(){
   }
 
   lastCalc = {consumo, periodo, hsp, pct, panelWp, mountMode, gridMode, requiredKwp, numPanels, actualKwp,
-              invSize, mppt, dpsCcQty, trifasico, dpsCaLabel, battery};
+              invSize, mppt, dpsCcQty, trifasico, dpsCaLabel, battery, areaRequerida, areaDisponible};
 
   // paint results
   document.getElementById('rKwp').innerHTML = requiredKwp.toFixed(2)+'<span> kWp</span>';
@@ -1012,6 +1094,15 @@ function calcular(){
   document.getElementById('rDpsCa').textContent = `${dpsCcQty} × ${dpsCaLabel}, In 20kA, Tipo 2`;
   document.getElementById('rHsp').textContent = hsp.toFixed(2)+' kWh/m²/día';
   document.getElementById('offgridNote').style.display = gridMode==='offgrid' ? 'block':'none';
+
+  document.getElementById('rAreaReq').textContent = `${areaRequerida.toFixed(1)} m² (aprox., incluye espacio entre filas)`;
+  if(areaDisponible){
+    document.getElementById('rowAreaDisp').style.display = 'flex';
+    const fits = areaDisponible >= areaRequerida;
+    document.getElementById('rAreaDisp').innerHTML = `${areaDisponible.toFixed(1)} m² — <span class="${fits?'result-ok':'result-bad'}">${fits?'✓ alcanza':'✗ podría no alcanzar'}</span>`;
+  } else {
+    document.getElementById('rowAreaDisp').style.display = 'none';
+  }
 
   if(gridMode==='offgrid' && lastCalc.battery){
     const b = lastCalc.battery;
@@ -1045,14 +1136,16 @@ function buildBudget(){
   const structFallbackQty = Math.ceil(lastCalc.numPanels/4);
   const items = [
     {name:`Panel fotovoltaico ${lastCalc.panelWp}Wp`, qty: lastCalc.numPanels, price: 90,
-      categoryTest: c => c.includes('panel'), powerField:'wp', target: lastCalc.panelWp},
+      categoryTest: c => c.includes('panel'), powerField:'wp', target: lastCalc.panelWp,
+      marca: document.getElementById('marcaPanel').value},
     {name:`Inversor ${lastCalc.invSize}kW ${lastCalc.trifasico?'trifásico':'monofásico'}`, qty:1, price: Math.round(lastCalc.invSize*130),
       categoryTest: c => c.includes('inversor') && (
         lastCalc.gridMode==='ongrid'
           ? (c.includes('on-grid') || c.includes('ongrid'))
           : (c.includes('hibrid') || c.includes('off grid') || c.includes('off-grid') || c.includes('cargador'))
       ) && (lastCalc.trifasico ? (c.includes('380') || c.includes('trifas') || c.includes('800')) : (c.includes('220') || !/380|800/.test(c))),
-      powerField:'kw', target: lastCalc.invSize},
+      powerField:'kw', target: lastCalc.invSize,
+      marca: document.getElementById('marcaInversor').value},
     {name: lastCalc.mountMode==='coplanar' ? 'Estructura de montaje coplanar' : `Estructura de montaje en ángulo (${document.getElementById('tiltAngle').value||30}°)`,
       qty: structFallbackQty, price: 90,
       categoryTest: c => c.includes('estructura'), powerField:null, target:null,
@@ -1090,11 +1183,11 @@ function buildBudget(){
     const b = lastCalc.battery;
     items.push({name:`Módulo de batería LFP ${b.moduloKwh}kWh`, qty: b.moduleCount, price: Math.round(b.moduloKwh*300),
       categoryTest: c => c.includes('bateria'), powerField:'kwh', target: b.moduloKwh,
-      descPreferred: /litio|lifepo4|lfp/});
+      descPreferred: /litio|lifepo4|lfp/, marca: document.getElementById('marcaBateria').value});
   }
 
   items.forEach(it=>{
-    const match = it.categoryTest ? findCatalogMatch(it.categoryTest, it.powerField, it.target, {descPreferred: it.descPreferred, descAvoid: it.descAvoid}) : null;
+    const match = it.categoryTest ? findCatalogMatch(it.categoryTest, it.powerField, it.target, {descPreferred: it.descPreferred, descAvoid: it.descAvoid, marca: it.marca}) : null;
     it.matched = !!match;
     if(match){
       it.name = shortenDesc(match.descripcion) || it.name;
@@ -1219,6 +1312,7 @@ function generarPDF(){
     ['Trackers MPPT', `${lastCalc.mppt}`],
     ['DPS CC', `${lastCalc.dpsCcQty} × Bipolar (2P), Un >=1000Vdc, In 20kA, Tipo 2`],
     ['DPS CA', `${lastCalc.dpsCcQty} × ${lastCalc.dpsCaLabel}, In 20kA, Tipo 2`],
+    ['Área requerida (estimada)', `${lastCalc.areaRequerida.toFixed(1)} m²${lastCalc.areaDisponible ? ` (disponible: ${lastCalc.areaDisponible.toFixed(1)} m² — ${lastCalc.areaDisponible>=lastCalc.areaRequerida?'alcanza':'podría no alcanzar'})` : ''}`],
   ];
   if(lastCalc.gridMode==='offgrid' && lastCalc.battery){
     const b = lastCalc.battery;
@@ -2078,4 +2172,91 @@ async function saveClient(){
     sistema: document.getElementById('cl_sistema').value,
     costo: document.getElementById('cl_costo').value,
     notas: document.getElementById('cl_notas').value,
-    up
+    updatedAt: new Date().toISOString()
+  };
+  clientsCache = clientsCache.filter(c=>c.id !== id);
+  clientsCache.push(record);
+  if(STORAGE_AVAILABLE){
+    try{ await window.storage.set('client:'+id, JSON.stringify(record), false); }
+    catch(e){ alert('No se pudo guardar en el almacenamiento persistente, pero quedó guardado en esta sesión. Exportá un backup en JSON.'); }
+  }
+  renderClientList();
+  ['cl_id','cl_nombre','cl_ubicacion','cl_contacto','cl_sistema','cl_costo','cl_notas'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('cl_estado').value = 'Consulta';
+}
+
+async function deleteClientById(id){
+  clientsCache = clientsCache.filter(c=>c.id !== id);
+  if(STORAGE_AVAILABLE){ try{ await window.storage.delete('client:'+id, false); }catch(e){} }
+  renderClientList();
+}
+
+function editClient(id){
+  const c = clientsCache.find(x=>x.id===id);
+  if(!c) return;
+  document.getElementById('cl_id').value = c.id;
+  document.getElementById('cl_nombre').value = c.nombre||'';
+  document.getElementById('cl_ubicacion').value = c.ubicacion||'';
+  document.getElementById('cl_contacto').value = c.contacto||'';
+  document.getElementById('cl_estado').value = c.estado||'Consulta';
+  document.getElementById('cl_fecha').value = c.fecha||'';
+  document.getElementById('cl_sistema').value = c.sistema||'';
+  document.getElementById('cl_costo').value = c.costo||'';
+  document.getElementById('cl_notas').value = c.notas||'';
+  window.scrollTo(0,0);
+}
+
+function renderClientList(){
+  const el = document.getElementById('cl_list');
+  const q = normStr(document.getElementById('cl_buscar').value);
+  let list = clientsCache.slice().sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
+  if(q) list = list.filter(c=>normStr(c.nombre).includes(q));
+  if(list.length === 0){ el.innerHTML = '<div class="hint">Sin clientes guardados.</div>'; return; }
+  el.innerHTML = list.map(c=>`
+    <div class="spec-row" style="flex-direction:column;align-items:flex-start;gap:4px;">
+      <div style="display:flex;justify-content:space-between;width:100%;">
+        <strong>${c.nombre}</strong>
+        <span style="color:var(--amber);font-size:11.5px;">${c.estado||''}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-dim);">${c.ubicacion||''} ${c.contacto?'· '+c.contacto:''}</div>
+      <div style="font-size:12px;color:var(--text-dim);">${c.sistema||''} ${c.costo?'· US$ '+c.costo:''}</div>
+      <div style="display:flex;gap:12px;margin-top:4px;">
+        <a href="#" onclick="editClient('${c.id}'); return false;" style="color:var(--sky);font-size:11.5px;">Editar</a>
+        <a href="#" onclick="deleteClientById('${c.id}'); return false;" style="color:var(--danger);font-size:11.5px;">Eliminar</a>
+      </div>
+    </div>
+  `).join('');
+}
+
+function exportClientsJSON(){
+  const blob = new Blob([JSON.stringify(clientsCache, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'clientes_backup.json';
+  a.click();
+}
+
+function importClientsJSON(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async function(ev){
+    try{
+      const imported = JSON.parse(ev.target.result);
+      if(!Array.isArray(imported)) throw new Error('Formato inválido');
+      clientsCache = imported;
+      if(STORAGE_AVAILABLE){
+        for(const c of clientsCache){
+          try{ await window.storage.set('client:'+c.id, JSON.stringify(c), false); }catch(e){}
+        }
+      }
+      renderClientList();
+      alert('Clientes importados correctamente.');
+    }catch(err){ alert('No se pudo importar: '+err.message); }
+  };
+  reader.readAsText(file);
+}
+
+loadClientsFromStorage();
+</script>
+</body>
+</html>
