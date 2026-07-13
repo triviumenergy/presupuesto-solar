@@ -1567,10 +1567,11 @@ function generarPDF(){
       <div class="stat"><div class="k">CO₂ evitado año 1</div><div class="v" id="co2Ano1">–</div></div>
       <div class="stat"><div class="k">CO₂ evitado acumulado (horizonte)</div><div class="v" id="co2Acum">–</div></div>
     </div>
-    <div class="spec-list">
-      <div class="spec-row"><span class="lbl">Equivalente en árboles (absorción anual)</span><span class="val" id="co2Arboles">–</span></div>
-      <div class="spec-row"><span class="lbl">Equivalente en km no recorridos en auto</span><span class="val" id="co2Km">–</span></div>
+    <div class="stat-grid" style="margin-top:12px;">
+      <div class="stat"><div class="k">🌳 Equivalente en árboles</div><div class="v" id="co2Arboles">–</div></div>
+      <div class="stat"><div class="k">🚗 Km no recorridos en auto</div><div class="v" id="co2Km">–</div></div>
     </div>
+    <canvas id="co2_chart" style="margin-top:18px;max-height:260px;"></canvas>
     <div class="hint" style="margin-top:10px;">Factor de emisión de la red eléctrica argentina: 0,486 kg CO₂/kWh (referencia de factor de emisión eléctrico usado en calculadoras de huella de carbono locales). Equivalencias: ~21 kg CO₂ absorbidos por árbol/año; ~150 g CO₂/km de auto a nafta. Valores orientativos para uso comercial, no un cálculo certificado.</div>
   </div>
 </div>
@@ -1728,6 +1729,7 @@ function pullFromDimensionador(target){
 }
 
 const CO2_FACTOR_KG_KWH = 0.486; // factor de emisión red eléctrica argentina (kg CO2/kWh)
+let co2Chart = null;
 
 function calcularCO2(){
   if(!lastCalc){ return null; }
@@ -1738,23 +1740,45 @@ function calcularCO2(){
   const co2Ano1Kg = genAno1 * CO2_FACTOR_KG_KWH;
 
   let co2AcumKg = 0;
+  const years = [], cumSeriesTon = [];
   for(let y=0; y<horizonte; y++){
     const gen = lastCalc.actualKwp * lastCalc.hsp * 365 * PR * Math.pow(1-degrad, y);
     co2AcumKg += gen * CO2_FACTOR_KG_KWH;
+    years.push(y+1);
+    cumSeriesTon.push(co2AcumKg/1000);
   }
 
   const arbolesPorAno = co2Ano1Kg / 21; // ~21 kg CO2 absorbidos por árbol/año
   const kmEquivalentes = (co2Ano1Kg*1000) / 150; // ~150 g CO2/km auto a nafta
 
-  const result = {co2Ano1Kg, co2AcumKg, arbolesPorAno, kmEquivalentes, horizonte};
+  const result = {co2Ano1Kg, co2AcumKg, arbolesPorAno, kmEquivalentes, horizonte, years, cumSeriesTon};
 
   const co2Ano1El = document.getElementById('co2Ano1');
-  const co2AcumEl = document.getElementById('co2Acum');
   if(co2Ano1El){
     co2Ano1El.innerHTML = `${(co2Ano1Kg/1000).toFixed(2)}<span> t CO₂/año</span>`;
-    co2AcumEl.innerHTML = `${(co2AcumKg/1000).toFixed(1)}<span> t CO₂ (${horizonte} años)</span>`;
+    document.getElementById('co2Acum').innerHTML = `${(co2AcumKg/1000).toFixed(1)}<span> t CO₂ (${horizonte} años)</span>`;
     document.getElementById('co2Arboles').textContent = `${Math.round(arbolesPorAno)} árboles/año`;
     document.getElementById('co2Km').textContent = `${Math.round(kmEquivalentes).toLocaleString('es-AR')} km/año`;
+    document.getElementById('co2Card').classList.add('show');
+
+    const ctx = document.getElementById('co2_chart').getContext('2d');
+    if(co2Chart) co2Chart.destroy();
+    co2Chart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: years, datasets: [{
+        label: 'CO₂ evitado acumulado (toneladas)',
+        data: cumSeriesTon,
+        borderColor: '#3C9761', backgroundColor: 'rgba(60,151,97,0.18)',
+        fill: true, tension: 0.25, pointRadius: 0
+      }]},
+      options: { responsive:true,
+        plugins:{ legend:{labels:{color:'#EAF0F4'}} },
+        scales:{
+          x:{ title:{display:true, text:'Año', color:'#9FB2C0'}, ticks:{color:'#9FB2C0'}, grid:{color:'rgba(255,255,255,0.06)'} },
+          y:{ title:{display:true, text:'t CO₂ acumuladas', color:'#9FB2C0'}, ticks:{color:'#9FB2C0'}, grid:{color:'rgba(255,255,255,0.06)'} }
+        }
+      }
+    });
   }
   return result;
 }
@@ -1977,6 +2001,14 @@ function generarPropuestaPDF(){
       styles:{fontSize:9.5, cellPadding:2}, columnStyles:{0:{cellWidth:90,fontStyle:'bold'},1:{cellWidth:92}},
       margin:{left:14,right:14} });
     y = doc.lastAutoTable.finalY + 6;
+
+    if(co2Chart){
+      if(y > 210){ doc.addPage(); y = 20; }
+      const co2ChartImg = document.getElementById('co2_chart').toDataURL('image/png', 1.0);
+      doc.addImage(co2ChartImg, 'PNG', 14, y, 182, 78);
+      y += 84;
+    }
+
     doc.setFontSize(7.5); doc.setTextColor(120,120,120);
     doc.text('Factor de emisión: 0,486 kg CO2/kWh (red eléctrica argentina). Valor orientativo, no un cálculo certificado.', 14, y);
     y += 10;
