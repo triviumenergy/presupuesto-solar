@@ -256,6 +256,13 @@
       <label>Potencia unitaria del panel (Wp)</label>
       <input type="number" id="panelWp" value="550">
 
+      <div class="subfield" style="margin-top:12px;">
+        <label style="margin-top:0;">Catálogo de precios (opcional) — CSV o Excel</label>
+        <input type="file" id="catalogFile" accept=".csv,.xlsx,.xls">
+        <div class="hint">Cargalo acá primero para poder elegir marca abajo. Funciona con catálogos de varias hojas/secciones (ej. un bloque de encabezado por marca o categoría, como las listas de distribuidores). Busco columnas de <strong>categoría</strong>, <strong>descripción</strong> y <strong>precio</strong>, y extraigo la potencia (Wp, kW, kWh) directamente del texto de la descripción si no hay una columna dedicada. Si hay columna de disponibilidad/stock, la muestro junto al ítem.</div>
+        <div class="hint mono" id="catalogStatus"></div>
+      </div>
+
       <div class="row2">
         <div>
           <label>Marca de panel (según catálogo)</label>
@@ -268,7 +275,7 @@
       </div>
       <label>Marca de batería (según catálogo, si es off-grid)</label>
       <select id="marcaBateria"><option value="">Cualquiera</option></select>
-      <div class="hint">Estos selectores se completan solos al subir un catálogo más abajo, en la sección de presupuesto.</div>
+      <div class="hint">Estos selectores se completan solos al cargar el catálogo de arriba.</div>
 
       <label>Área disponible (m²) — dejalo vacío si no la sabés</label>
       <input type="number" id="areaDisponible" step="any" placeholder="Ej: 25 (opcional)">
@@ -350,13 +357,6 @@
       </div>
     </div>
     <div class="hint">Precios unitarios editables — no reflejan una cotización vigente, ajustalos antes de enviar al cliente.</div>
-
-    <div class="subfield" style="margin-top:12px;">
-      <label style="margin-top:0;">Catálogo de precios (opcional) — CSV o Excel</label>
-      <input type="file" id="catalogFile" accept=".csv,.xlsx,.xls">
-      <div class="hint">Funciona con catálogos de varias hojas/secciones (ej. un bloque de encabezado por marca o categoría, como las listas de distribuidores). Busco columnas de <strong>categoría</strong>, <strong>descripción</strong> y <strong>precio</strong>, y extraigo la potencia (Wp, kW, kWh) directamente del texto de la descripción si no hay una columna dedicada. Si hay columna de disponibilidad/stock, la muestro junto al ítem.</div>
-      <div class="hint mono" id="catalogStatus"></div>
-    </div>
 
     <table class="budget" id="budgetTable">
       <thead>
