@@ -206,6 +206,7 @@
       <label>Nombre del proyecto / cliente</label>
       <input type="text" id="proy_nombreNuevo" placeholder="Ej: Roberto Gómez">
       <button class="btn-primary" onclick="crearProyecto()">Crear y activar</button>
+      <div class="hint mono" id="proy_createStatus" style="margin-top:8px;"></div>
 
       <div class="row2" style="margin-top:20px;">
         <button class="btn-secondary" onclick="exportProyectosJSON()">⬇ Exportar todo (JSON)</button>
@@ -2013,4 +2014,4 @@ function generarPropuestaPDF(){
     ['Costo del sistema', `US$ ${s.costoUsd.toLocaleString('es-AR')}`],
     ['Ahorro estimado año 1', `US$ ${s.ahorroAno1Usd.toFixed(0)}`],
     ['Ahorro neto acumulado (a '+s.horizonte+' años)', `US$ ${s.acumuladoUsd.toLocaleString('en-US',{maximumFractionDigits:0})}`],
-    ['Recupero de la inversión (payback)', s.paybackYear ? `${s.paybackYear.toFixed(1)
+   
