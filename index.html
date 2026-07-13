@@ -10,6 +10,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+  // Fuente segura para los gráficos: evita depender de la webfont personalizada (Space Grotesk/Inter),
+  // que si no terminó de cargar al capturar el canvas como imagen para el PDF, corrompe el texto.
+  if(window.Chart){ Chart.defaults.font.family = "Arial, Helvetica, sans-serif"; }
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 <script>window.__pdfWorkerSrcDefault = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
@@ -1513,7 +1518,7 @@ function generarPDF(){
         <div class="spec-row"><span class="lbl">Costo del sistema</span><span class="val" id="ah_costoLocal">–</span></div>
       </div>
       <div class="hint" style="margin-top:10px;">Todo el flujo se calcula y acumula en dólares, para no mezclar pesos de años distintos entre sí (no son comparables por la inflación). El equivalente en pesos de hoy que se muestra es solo referencial.</div>
-      <canvas id="ah_chart" style="margin-top:16px;max-height:260px;"></canvas>
+      <canvas id="ah_chart" width="700" height="320" style="margin-top:16px;max-height:260px;width:100%;"></canvas>
     </div>
   </div>
 
@@ -1571,7 +1576,7 @@ function generarPDF(){
       <div class="stat"><div class="k">🌳 Equivalente en árboles</div><div class="v" id="co2Arboles">–</div></div>
       <div class="stat"><div class="k">🚗 Km no recorridos en auto</div><div class="v" id="co2Km">–</div></div>
     </div>
-    <canvas id="co2_chart" style="margin-top:18px;max-height:260px;"></canvas>
+    <canvas id="co2_chart" width="700" height="320" style="margin-top:18px;max-height:260px;width:100%;"></canvas>
     <div class="hint" style="margin-top:10px;">Factor de emisión de la red eléctrica argentina: 0,486 kg CO₂/kWh (referencia de factor de emisión eléctrico usado en calculadoras de huella de carbono locales). Equivalencias: ~21 kg CO₂ absorbidos por árbol/año; ~150 g CO₂/km de auto a nafta. Valores orientativos para uso comercial, no un cálculo certificado.</div>
   </div>
 </div>
@@ -1771,7 +1776,7 @@ function calcularCO2(){
         borderColor: '#3C9761', backgroundColor: 'rgba(60,151,97,0.18)',
         fill: true, tension: 0.25, pointRadius: 0
       }]},
-      options: { responsive:true,
+      options: { responsive:false, animation:false, maintainAspectRatio:false,
         plugins:{ legend:{labels:{color:'#EAF0F4'}} },
         scales:{
           x:{ title:{display:true, text:'Año', color:'#9FB2C0'}, ticks:{color:'#9FB2C0'}, grid:{color:'rgba(255,255,255,0.06)'} },
@@ -1846,7 +1851,7 @@ function calcularAhorro(){
       borderColor: '#F2A93B', backgroundColor: 'rgba(242,169,59,0.15)',
       fill: true, tension: 0.25, pointRadius: 0
     }]},
-    options: { responsive:true,
+    options: { responsive:false, animation:false, maintainAspectRatio:false,
       plugins:{ legend:{labels:{color:'#EAF0F4'}} },
       scales:{
         x:{ title:{display:true, text:'Año', color:'#9FB2C0'}, ticks:{color:'#9FB2C0'}, grid:{color:'rgba(255,255,255,0.06)'} },
@@ -1990,10 +1995,10 @@ function generarPropuestaPDF(){
   const co2 = calcularCO2();
   if(co2){
     doc.setFontSize(13); doc.setTextColor(18,42,28);
-    doc.text('Dashboard ambiental — CO₂ evitado', 14, y); y+=4;
+    doc.text('Dashboard ambiental — CO2 evitado', 14, y); y+=4;
     const co2Rows = [
-      ['CO₂ evitado año 1', `${(co2.co2Ano1Kg/1000).toFixed(2)} t CO₂/año`],
-      [`CO₂ evitado acumulado (${co2.horizonte} años)`, `${(co2.co2AcumKg/1000).toFixed(1)} t CO₂`],
+      ['CO2 evitado año 1', `${(co2.co2Ano1Kg/1000).toFixed(2)} t CO2/año`],
+      [`CO2 evitado acumulado (${co2.horizonte} años)`, `${(co2.co2AcumKg/1000).toFixed(1)} t CO2`],
       ['Equivalente en árboles (absorción anual)', `${Math.round(co2.arbolesPorAno)} árboles/año`],
       ['Equivalente en km no recorridos en auto', `${Math.round(co2.kmEquivalentes).toLocaleString('es-AR')} km/año`],
     ];
